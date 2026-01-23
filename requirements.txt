@@ -1,0 +1,7 @@
+
+aiosqlite
+# Development dependencies
+mypy
+black
+isort
+ruff
