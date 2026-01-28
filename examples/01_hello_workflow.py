@@ -44,10 +44,10 @@ class HelloWorkflow(loom.Workflow[HelloInput, HelloState]):
         """Generate a greeting using an activity."""
         # Execute activity (handles retries and timeouts)
         greeting = await ctx.activity(format_greeting, ctx.input["name"])
-        
+
         # Update workflow state (emits STATE_SET event)
         await ctx.state.set("greeting", greeting)
-        
+
         ctx.logger.info(f"Generated greeting: {greeting}")
 
     @loom.step(name="create_message")
@@ -55,7 +55,5 @@ class HelloWorkflow(loom.Workflow[HelloInput, HelloState]):
         """Create a farewell message."""
         message = f"Goodbye from {ctx.input['name']}!"
         await ctx.state.set("message", message)
-        
+
         ctx.logger.info(f"Created message: {message}")
-
-
