@@ -154,6 +154,7 @@ class Database(Generic[InputT, StateT]):
                     "id": row["id"],
                     "name": row["name"],
                     "status": row["status"],
+                    "version": row["version"],
                     "module": row["module"],
                     "input": row["input"],
                     "created_at": row["created_at"],
