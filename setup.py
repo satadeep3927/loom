@@ -16,7 +16,7 @@ setup(
     url="https://github.com/satadeep3927/loom",
     packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
     package_data={
-        "src": ["migrations/up/*.sql", "migrations/down/*.sql"],
+        "loom": ["migrations/up/*.sql", "migrations/down/*.sql"],
     },
     include_package_data=True,
     classifiers=[
@@ -46,7 +46,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "loom=src.cli.cli:cli",
+            "loom=loom.cli.cli:cli",
         ],
     },
 )

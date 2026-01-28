@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.decorators.activity import activity
+from loom.decorators.activity import activity
 
 
 def test_activity_decorator_basic():

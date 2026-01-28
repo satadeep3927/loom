@@ -2,11 +2,11 @@
 
 import pytest
 
-from src.core.context import WorkflowContext
-from src.core.workflow import Workflow
-from src.database.db import Database
-from src.decorators.activity import activity
-from src.decorators.workflow import step, workflow
+from loom.core.context import WorkflowContext
+from loom.core.workflow import Workflow
+from loom.database.db import Database
+from loom.decorators.activity import activity
+from loom.decorators.workflow import step, workflow
 
 
 # Test activity

@@ -2,9 +2,9 @@
 
 import pytest
 
-from src.common.errors import StopReplay
-from src.core.context import WorkflowContext
-from src.schemas.events import Event
+from loom.common.errors import StopReplay
+from loom.core.context import WorkflowContext
+from loom.schemas.events import Event
 
 
 class TestInput(dict):

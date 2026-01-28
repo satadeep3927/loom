@@ -8,7 +8,7 @@ This allows users to:
         ...
 """
 
-from src import *  # noqa: F401, F403
+from loom import *  # noqa: F401, F403
 
 __all__ = [
     "activity",

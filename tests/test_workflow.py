@@ -2,9 +2,9 @@
 
 import pytest
 
-from src.core.context import WorkflowContext
-from src.core.workflow import Workflow
-from src.decorators.workflow import step, workflow
+from loom.core.context import WorkflowContext
+from loom.core.workflow import Workflow
+from loom.decorators.workflow import step, workflow
 
 
 class TestInput(dict):

@@ -41,7 +41,7 @@ dev = [
 ]
 
 [project.scripts]
-loom = "src.cli.cli:cli"
+loom = "loom.cli.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/satadeep3927/loom"

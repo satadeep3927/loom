@@ -6,8 +6,8 @@ import tempfile
 
 import pytest
 
-from src.common.config import DATABASE
-from src.database.db import Database
+from loom.common.config import DATABASE
+from loom.database.db import Database
 
 
 @pytest.fixture(scope="session")
@@ -27,7 +27,7 @@ async def test_db():
 
     # Override database path
     original_db = DATABASE
-    import src.common.config as config
+    import loom.common.config as config
 
     config.DATABASE = tmp_path
 

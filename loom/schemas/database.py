@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from src.schemas.workflow import Step
+from loom.schemas.workflow import Step
 
 
 class Migration(TypedDict):
