@@ -76,7 +76,7 @@ def init():
     echo("Initializing Loom database...")
 
     async def _init():
-        async with Database() as db:
+        async with Database[Any, Any]() as db:
             await db._init_db()
 
     try:
@@ -182,7 +182,7 @@ def inspect(workflow_id: str, events: bool):
     """
 
     async def _inspect():
-        async with Database() as db:
+        async with Database[Any, Any]() as db:
             # Get workflow info
             workflow = await db.get_workflow_info(workflow_id)
 
@@ -218,7 +218,7 @@ def stats():
     """
 
     async def _stats():
-        async with Database() as db:
+        async with Database[Any, Any]() as db:
             workflows = await db.query("SELECT COUNT(*) as count FROM workflows")
             events = await db.query("SELECT COUNT(*) as count FROM events")
             tasks = await db.query("SELECT COUNT(*) as count FROM tasks")

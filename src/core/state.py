@@ -85,7 +85,7 @@ class StateProxy(Generic[InputT, StateT]):
         """
         if self._batch is not None:
             raise RuntimeError("Nested batches are not supported.")
-        self._batch = []
+        self._batch = [] # type: ignore
 
         try:
             yield

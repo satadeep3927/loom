@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Generic
 
 from ..common.activity import load_activity
@@ -53,9 +54,8 @@ class Engine(Generic[InputT, StateT]):
 
         except Exception as e:
             async with Database[InputT, StateT]() as db:
-                await db.task_failed(task["id"], str(e))
-
-                if task["attempts"] + 1 >= task["max_attempts"]:
+                if task["attempts"] >= task["max_attempts"]:
+                    await db.task_failed(task["id"], str(e))
                     await db.create_event(
                         workflow_id=task["workflow_id"],
                         type="ACTIVITY_FAILED",
@@ -64,6 +64,11 @@ class Engine(Generic[InputT, StateT]):
                             "error": str(e),
                         },
                     )
+                else:
+
+                    delay = min(60, 2 ** task["attempts"])
+                    next_run = datetime.now(timezone.utc) + timedelta(seconds=delay)
+                    await db.schedule_retry(task["id"], next_run, str(e))
 
     @staticmethod
     async def replay_until_block(workflow_id: str) -> None:

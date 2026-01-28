@@ -452,6 +452,26 @@ class Database(Generic[InputT, StateT]):
             """
         await self.execute(sql, (error_message, task_id))
 
+    async def schedule_retry(self, task_id: str, run_at: datetime, error: str) -> None:
+        """Schedule a task for retry.
+
+        Updates the task status to PENDING and sets the next execution time.
+
+        Args:
+            task_id: Unique identifier of the task to retry
+            run_at: Datetime when the task should be retried
+            error: Error message from the failed attempt
+        """
+        sql = """
+            UPDATE tasks
+            SET status = 'PENDING',
+                run_at = ?,
+                last_error = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """
+        await self.execute(sql, (run_at, error, task_id))
+
     async def claim_task(self) -> Task | None:
         """Atomically claim the next available task for processing.
 
