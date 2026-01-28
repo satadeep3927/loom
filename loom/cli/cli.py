@@ -3,6 +3,7 @@
 
 import asyncio
 import sys
+import os  # Added import
 from typing import Any
 
 import click
@@ -28,6 +29,9 @@ def cli():
     Loom provides event-sourced, deterministic workflow execution with
     automatic recovery and replay capabilities.
     """
+    # Ensure current directory is in python path so user modules can be imported
+    if os.getcwd() not in sys.path:
+        sys.path.insert(0, os.getcwd())
     pass
 
 
