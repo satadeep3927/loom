@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Satadeep Dasgupta", email = "satadeep.dasgupta@brainiuminfotech.com"}
 ]
 keywords = ["workflow", "orchestration", "durable", "event-sourcing", "temporal"]
 classifiers = [
@@ -44,10 +44,10 @@ dev = [
 loom = "src.cli.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/loom"
-Documentation = "https://github.com/yourusername/loom/blob/main/README.md"
-Repository = "https://github.com/yourusername/loom"
-Issues = "https://github.com/yourusername/loom/issues"
+Homepage = "https://github.com/satadeep3927/loom"
+Documentation = "https://github.com/satadeep3927/loom/blob/main/README.md"
+Repository = "https://github.com/satadeep3927/loom"
+Issues = "https://github.com/satadeep3927/loom/issues"
 
 [tool.setuptools]
 packages = ["src", "src.common", "src.core", "src.database", "src.decorators", "src.lib", "src.schemas", "src.cli", "src.migrations"]
