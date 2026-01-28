@@ -1,0 +1,32 @@
+graph TD
+    subgraph Workflow ["Workflow"]
+        direction LR
+        Step1[Step 1] --> Step2[Step 2]
+        Step2 --> Step3[Step 3]
+    end
+
+    Workflow --> Context
+
+    subgraph Context ["WorkflowContext"]
+        SM[State Management (StateProxy)]
+        AE[Activity Execution]
+        ER[Event Replay & Cursor]
+        Log[Logger (replay-safe)]
+    end
+
+    Context --> Engine
+
+    subgraph Engine ["Engine"]
+        RUB[replay_until_block() - Step execution]
+        RA[replay_activity() - Activity retry]
+        EM[Event matching & determinism]
+    end
+
+    Engine --> DB
+
+    subgraph DB ["Database (SQLite)"]
+        T1[workflows]
+        T2[events]
+        T3[tasks]
+        T4[logs]
+    end
