@@ -1,133 +1,146 @@
-# Loom - Durable Workflow Orchestration 🧵
+# Loom - Durable Workflow Orchestration
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI](https://img.shields.io/badge/pypi-loom--core-blue)](https://pypi.org/project/loom-core/)
 
 A Python-based durable workflow orchestration engine inspired by [Temporal](https://temporal.io/) and [Durable Task Framework](https://github.com/Azure/durabletask). Loom provides event-sourced, deterministic workflow execution with automatic recovery and replay capabilities.
 
-## ✨ Features
+## Features
 
-- 🔄 **Event Sourcing**: All workflow state changes persisted as immutable events
-- 🎯 **Deterministic Replay**: Workflows reconstruct from event history for recovery
-- 🔧 **Type Safe**: Full generic typing support with `Workflow[InputT, StateT]`
-- ⚡ **Async First**: Built on asyncio for high-performance concurrent execution
-- 🛡️ **Durable Execution**: Workflows survive process crashes and auto-recover
-- 🎨 **Beautiful CLI**: Rich console interface with progress tracking
-- 🧪 **Well Tested**: Comprehensive test suite with pytest
+- **Event Sourcing**: All workflow state changes persisted as immutable events
+- **Deterministic Replay**: Workflows reconstruct from event history for recovery
+- **Type Safe**: Full generic typing support with `Workflow[InputT, StateT]`
+- **Async First**: Built on asyncio for high-performance concurrent execution
+- **Durable Execution**: Workflows survive process crashes and auto-recover
+- **Beautiful CLI**: Rich console interface with progress tracking
+- **Well Tested**: Comprehensive test suite with pytest
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
 ```bash
-# Clone the repository
+pip install loom-core
+```
+
+Or install from source:
+
+```bash
 git clone https://github.com/yourusername/loom.git
 cd loom
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Initialize database
-python loom_cli.py init
+pip install -e .
 ```
 
 ### Define a Workflow
 
 ```python
-from dataclasses import dataclass
-from datetime import timedelta
-
-from src.core.context import WorkflowContext
-from src.core.workflow import Workflow
-from src.decorators.workflow import workflow, step
-from src.decorators.activity import activity
+import asyncio
+from typing import TypedDict
+import loom
 
 
 # Define your data types
-@dataclass
-class OrderInput:
+class OrderInput(TypedDict):
     order_id: str
     customer_email: str
 
 
-@dataclass
-class OrderState:
-    payment_confirmed: bool = False
-    email_sent: bool = False
+class OrderState(TypedDict):
+    payment_confirmed: bool
+    email_sent: bool
 
 
 # Define activities (side effects)
-@activity(name="process_payment", retry_count=3, timeout_seconds=30)
+@loom.activity(name="process_payment", retry_count=3, timeout_seconds=30)
 async def process_payment(order_id: str) -> bool:
     # Call payment API
     return True
 
 
-@activity(name="send_email", retry_count=2)
+@loom.activity(name="send_email", retry_count=2)
 async def send_confirmation_email(email: str, order_id: str) -> None:
     # Send email via service
     pass
 
 
 # Define workflow
-@workflow(name="OrderProcessing", version="1.0.0")
-class OrderWorkflow(Workflow[OrderInput, OrderState]):
+@loom.workflow(name="OrderProcessing", version="1.0.0")
+class OrderWorkflow(loom.Workflow[OrderInput, OrderState]):
     
-    @step(name="process_payment")
-    async def payment_step(self, ctx: WorkflowContext[OrderInput, OrderState]):
-        success = await ctx.activity(process_payment, ctx.input.order_id)
+    @loom.step(name="process_payment")
+    async def payment_step(self, ctx: loom.WorkflowContext[OrderInput, OrderState]):
+        success = await ctx.activity(process_payment, ctx.input["order_id"])
         await ctx.state.set("payment_confirmed", success)
         ctx.logger.info(f"Payment processed: {success}")
     
-    @step(name="send_confirmation")
-    async def notification_step(self, ctx: WorkflowContext[OrderInput, OrderState]):
-        if ctx.state.get("payment_confirmed"):
+    @loom.step(name="send_confirmation")
+    async def notification_step(self, ctx: loom.WorkflowContext[OrderInput, OrderState]):
+        if ctx.state["payment_confirmed"]:
             await ctx.activity(
                 send_confirmation_email,
-                ctx.input.customer_email,
-                ctx.input.order_id
+                ctx.input["customer_email"],
+                ctx.input["order_id"]
             )
             await ctx.state.set("email_sent", True)
             ctx.logger.info("Confirmation email sent")
 ```
 
+**Note**: For state updates, use:
+- `await ctx.state.set("key", value)` for single values
+- `await ctx.state.update(key=lambda _: asyncio.sleep(0, value))` for batch updates (requires awaitable)
+
+See [STATE_MANAGEMENT.md](STATE_MANAGEMENT.md) for detailed examples.
+
 ### Start a Workflow
 
 ```python
-import asyncio
-
 async def main():
-    # Compile workflow
-    workflow = OrderWorkflow.compile()
-    
-    # Start execution
-    handle = await workflow.start(
-        input=OrderInput(
-            order_id="ORD-12345",
-            customer_email="customer@example.com"
+    db = loom.Database()
+    async with db:
+        # Initialize database
+        await db.migrate_up()
+        
+        # Start workflow
+        handle = await db.start_workflow(
+            OrderWorkflow,
+            workflow_input=OrderInput(
+                order_id="ORD-12345",
+                customer_email="customer@example.com"
+            ),
+            initial_state=OrderState(
+                payment_confirmed=False,
+                email_sent=False
+            ),
         )
-    )
-    
-    print(f"Workflow started: {handle.id}")
-    
-    # Check status
-    status = await handle.status()
-    print(f"Status: {status}")
+        
+        print(f"Workflow started: {handle.workflow_id}")
+        
+        # Execute workflow tasks
+        while True:
+            task_executed = await loom.run_once()
+            if not task_executed:
+                break
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Run the Worker
 
 ```bash
+# Initialize database
+loom init
+
 # Start worker with 4 concurrent task processors
-python loom_cli.py worker
+loom worker
 
 # Custom configuration
-python loom_cli.py worker --workers 8 --poll-interval 1.0
+loom worker --workers 8 --poll-interval 1.0
 ```
 
-## 🎛️ CLI Commands
+## CLI Commands
 
 ```bash
 # Initialize database
@@ -218,7 +231,7 @@ pytest tests/test_workflow.py
 pytest -v
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 loom/
@@ -232,11 +245,11 @@ loom/
 │   └── schemas/        # Type definitions
 ├── tests/              # Test suite
 ├── examples/           # Example workflows
-├── loom_cli.py         # CLI interface
-└── requirements.txt    # Dependencies
+├── loom.py             # Main package interface
+└── pyproject.toml      # Package configuration
 ```
 
-## 🔧 Configuration
+## Configuration
 
 Loom uses SQLite by default for simplicity. For production:
 
@@ -245,13 +258,29 @@ Loom uses SQLite by default for simplicity. For production:
 - Add monitoring and alerting
 - Deploy multiple workers for high availability
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please ensure:
 
 1. Tests pass: `pytest`
 2. Code formatted: `black .`
-3. Type checking: `mypy src`
+3. Type checking: `mypy .`
+4. Linting: `ruff check .`
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+Inspired by:
+- [Temporal](https://temporal.io/) - The workflow orchestration platform
+- [Durable Task Framework](https://github.com/Azure/durabletask) - Microsoft's durable task library
+- [Cadence](https://cadenceworkflow.io/) - Uber's workflow platform
+
+---
+
+**Built withpy src`
 4. Linting: `ruff check src`
 
 ## 📝 License

@@ -1,0 +1,8 @@
+include README.md
+include QUICKSTART.md
+include LICENSE
+recursive-include src/migrations *.sql
+recursive-exclude tests *
+recursive-exclude examples *
+recursive-exclude __pycache__ *
+recursive-exclude *.pyc *

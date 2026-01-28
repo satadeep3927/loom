@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="loom-workflows",
+    name="loom-core",
     version="0.1.0",
     author="Your Name",
     author_email="your.email@example.com",
@@ -14,7 +14,11 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/loom",
-    packages=find_packages(),
+    packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
+    package_data={
+        "src": ["migrations/up/*.sql", "migrations/down/*.sql"],
+    },
+    include_package_data=True,
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
