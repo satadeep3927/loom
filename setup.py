@@ -8,12 +8,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="loom-core",
     version="0.1.0",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Satadeep Dasgupta",
+    author_email="satadeep.dasgupta@brainiuminfotech.com",
     description="Durable workflow orchestration engine for Python",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/loom",
+    url="https://github.com/satadeep3927/loom",
     packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
     package_data={
         "src": ["migrations/up/*.sql", "migrations/down/*.sql"],
