@@ -37,6 +37,7 @@ class WorkflowContext(Generic[InputT, StateT]):
     state: StateProxy[InputT, StateT]
     cursor: int = 0
     logger: WorkflowLogger
+    _original_history_length: int  # Track original history size for replay detection
 
     def __init__(
         self, id: str, input: InputT, history: List[Event], state: StateT
@@ -52,6 +53,7 @@ class WorkflowContext(Generic[InputT, StateT]):
         self.id = id
         self.input = input
         self.history = history
+        self._original_history_length = len(history)  # Remember original size
         self.state = StateProxy(self, state)
         self.logger = WorkflowLogger(self)
 
@@ -108,14 +110,13 @@ class WorkflowContext(Generic[InputT, StateT]):
 
     @property
     def is_replaying(self) -> bool:
-        """Check if the workflow is currently replaying events.
+        """Check if the workflow is currently replaying old events.
 
         Returns:
-            True if there are remaining events to replay, False otherwise
+            True if replaying historical events, False if executing new logic
         """
-        return self.cursor < len(self.history)
-
-    @property
+        # We're replaying if we haven't consumed all the original events yet
+        return self.cursor < self._original_history_length
     def is_at_end_of_history(self) -> bool:
         """Check if we've consumed all events in history.
 

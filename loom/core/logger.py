@@ -40,10 +40,11 @@ class WorkflowLogger:
         self._log("DEBUG", msg)
 
     def _log(self, level: str, msg: str):
+        # Only suppress logging if we're actually replaying historical events
         if self._ctx.is_replaying:
             return
 
-        self._std_logger.info(f"{msg}")
+        self._std_logger.info(f"[{self._ctx.id[:8]}] {msg}")
         asyncio.create_task(self._write_log_to_db(level, msg))
 
     async def _write_log_to_db(self, level: str, msg: str):
