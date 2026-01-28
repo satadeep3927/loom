@@ -344,6 +344,72 @@ class Database(Generic[InputT, StateT]):
             (workflow_id, json.dumps(signal_payload)),
         )
 
+    async def workflow_failed(
+        self, workflow_id: str, error: str, task_id: str = None, task_kind: str = None
+    ) -> None:
+        """Mark a workflow as failed due to an unhandled exception.
+
+        Creates a WORKFLOW_FAILED event and updates the workflow status.
+        Also cancels any remaining pending tasks for the workflow.
+
+        Args:
+            workflow_id: Workflow identifier to mark as failed
+            error: Error message describing the failure
+            task_id: Optional task ID that caused the failure
+            task_kind: Optional task kind that caused the failure
+
+        Raises:
+            WorkflowNotFoundError: If the workflow doesn't exist
+        """
+        # Get workflow info (this will raise WorkflowNotFoundError if not found)
+        workflow = await self.get_workflow_info(workflow_id)
+
+        # Skip if already in terminal state
+        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELED"):
+            return
+
+        # Prepare failure payload
+        payload = {
+            "error": error,
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if task_id:
+            payload["task_id"] = task_id
+        if task_kind:
+            payload["task_kind"] = task_kind
+
+        # Create failure event
+        await self.execute(
+            """
+            INSERT INTO events (workflow_id, type, payload)
+            VALUES (?, 'WORKFLOW_FAILED', ?)
+            """,
+            (workflow_id, json.dumps(payload)),
+        )
+
+        # Update workflow status
+        await self.execute(
+            """
+            UPDATE workflows
+            SET status = 'FAILED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (workflow_id,),
+        )
+
+        # Cancel all pending tasks
+        await self.execute(
+            """
+            UPDATE tasks
+            SET status = 'FAILED',
+                last_error = 'workflow failed'
+            WHERE workflow_id = ?
+              AND status = 'PENDING'
+            """,
+            (workflow_id,),
+        )
+
     async def cancel_workflow(
         self, workflow_id: str, reason: str | None = None
     ) -> None:

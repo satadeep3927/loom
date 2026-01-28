@@ -102,6 +102,15 @@ class WorkflowContext(Generic[InputT, StateT]):
         """
         return self.cursor < len(self.history)
 
+    @property
+    def is_at_end_of_history(self) -> bool:
+        """Check if we've consumed all events in history.
+
+        Returns:
+            True if we're at the end of event history, False otherwise
+        """
+        return self.cursor >= len(self.history)
+
     def _extract_activity_metadata[FuncReturn](
         self, fn: Callable[..., Awaitable[FuncReturn]], args: tuple[Any, ...]
     ) -> ActivityMetadata:

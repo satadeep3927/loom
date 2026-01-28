@@ -50,4 +50,13 @@ async def run_once() -> bool:
         except Exception as e:
             traceback.print_exc()
             await db.task_failed(task["id"], str(e))
+
+            # Mark workflow as failed when unhandled exception occurs
+            await db.workflow_failed(
+                workflow_id=workflow_id,
+                error=str(e),
+                task_id=task["id"],
+                task_kind=task["kind"],
+            )
+
             return True

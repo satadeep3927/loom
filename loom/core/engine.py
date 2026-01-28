@@ -93,8 +93,41 @@ class Engine(Generic[InputT, StateT]):
 
         try:
             for step in steps:
+                # Check for and consume STEP_START event during replay
+                step_start_event = ctx._match_event("STEP_START")
+                if step_start_event:
+                    if step_start_event["payload"]["step_name"] != step["name"]:
+                        raise StopReplay  # Step mismatch, something changed
+                    ctx._consume()
+                else:
+                    # Not replaying, emit STEP_START event
+                    if not ctx.is_replaying:
+                        await ctx._append_event(
+                            "STEP_START",
+                            {
+                                "step_name": step["name"],
+                                "step_fn": step["fn"],
+                                "started_at": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+
                 step_fn = getattr(workflow, step["fn"])
                 await step_fn(ctx)
+
+                # Check for and consume STEP_END event during replay
+                step_end_event = ctx._match_event("STEP_END")
+                if step_end_event:
+                    ctx._consume()
+                else:
+                    # Not replaying, emit STEP_END event
+                    if not ctx.is_replaying:
+                        await ctx._append_event(
+                            "STEP_END",
+                            {
+                                "step_name": step["name"],
+                                "completed_at": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
 
         except StopReplay:
             last = ctx.last_emitted_event_type()
