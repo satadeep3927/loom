@@ -345,7 +345,7 @@ class Database(Generic[InputT, StateT]):
         )
 
     async def workflow_failed(
-        self, workflow_id: str, error: str, task_id: str = None, task_kind: str = None
+        self, workflow_id: str, error: str, task_id: str|None = None, task_kind: str|None = None
     ) -> None:
         """Mark a workflow as failed due to an unhandled exception.
 
@@ -406,6 +406,60 @@ class Database(Generic[InputT, StateT]):
                 last_error = 'workflow failed'
             WHERE workflow_id = ?
               AND status = 'PENDING'
+            """,
+            (workflow_id,),
+        )
+
+    async def complete_workflow(self, workflow_id: str) -> None:
+        """Mark a workflow as successfully completed.
+
+        Creates a WORKFLOW_COMPLETED event and updates the workflow status.
+        Also completes any running step tasks for the workflow.
+
+        Args:
+            workflow_id: Workflow identifier to mark as completed
+
+        Raises:
+            WorkflowNotFoundError: If the workflow doesn't exist
+        """
+        # Get workflow info (this will raise WorkflowNotFoundError if not found)
+        workflow = await self.get_workflow_info(workflow_id)
+
+        # Skip if already in terminal state
+        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELED"):
+            return
+
+        # Create completion event
+        await self.execute(
+            """
+            INSERT INTO events (workflow_id, type, payload)
+            VALUES (?, 'WORKFLOW_COMPLETED', ?)
+            """,
+            (workflow_id, json.dumps({
+                "completed_at": datetime.now(timezone.utc).isoformat()
+            })),
+        )
+
+        # Update workflow status
+        await self.execute(
+            """
+            UPDATE workflows
+            SET status = 'COMPLETED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (workflow_id,),
+        )
+
+        # Complete any running step tasks
+        await self.execute(
+            """
+            UPDATE tasks
+            SET status = 'COMPLETED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workflow_id = ?
+              AND kind = 'STEP'
+              AND status = 'RUNNING'
             """,
             (workflow_id,),
         )

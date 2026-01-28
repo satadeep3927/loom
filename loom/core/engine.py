@@ -137,5 +137,4 @@ class Engine(Generic[InputT, StateT]):
             return
 
         async with Database[InputT, StateT]() as db:
-            await db.create_event(workflow_id, "WORKFLOW_COMPLETED", {})
-            await db.complete_running_step(workflow_id)
+            await db.complete_workflow(workflow_id)
