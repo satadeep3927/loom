@@ -1,4 +1,5 @@
 import importlib
+import sys
 from typing import Any, Type
 
 from ..core.workflow import Workflow
@@ -32,6 +33,11 @@ def workflow_registry(module: str, cls: str) -> Type[Workflow[Any, Any]]:
     """
     try:
         workflow_module = importlib.import_module(module)
+        
+        # Force reload the module to get latest changes
+        if module in sys.modules:
+            workflow_module = importlib.reload(workflow_module)
+            
     except ModuleNotFoundError as e:
         raise ModuleNotFoundError(
             f"Cannot import workflow module '{module}'. "

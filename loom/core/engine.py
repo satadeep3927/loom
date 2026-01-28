@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Generic
 
 from ..common.activity import load_activity
@@ -76,9 +77,10 @@ class Engine(Generic[InputT, StateT]):
         async with Database[InputT, StateT]() as db:
             workflow_def = await db.get_workflow_info(workflow_id)
             history = await db.get_workflow_events(workflow_id=workflow_def["id"])
+        workflow_input = json.loads(workflow_def["input"])
 
         ctx: WorkflowContext = WorkflowContext(
-            workflow_def["id"], workflow_def["input"], history, {}
+            workflow_def["id"], workflow_input, history, {}
         )
 
         first_event = ctx._peek()

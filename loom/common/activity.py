@@ -1,4 +1,5 @@
 import importlib
+import sys
 from typing import Any, Awaitable, Callable, cast
 
 
@@ -6,6 +7,11 @@ def load_activity(module: str, func: str) -> Callable[..., Awaitable[Any]]:
 
     try:
         activity_module = importlib.import_module(module)
+
+        # Force reload the module to get latest changes
+        if module in sys.modules:
+            activity_module = importlib.reload(activity_module)
+
     except ModuleNotFoundError as e:
         raise ModuleNotFoundError(
             f"Cannot import activity module '{module}'. "
