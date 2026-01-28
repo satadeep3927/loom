@@ -189,7 +189,7 @@ class Database(Generic[InputT, StateT]):
             row = await cursor.fetchone()
 
             if row:
-                return row["status"]
+                return row["status"]  # type: ignore
 
             raise WorkflowNotFoundError(f"Workflow with ID {workflow_id} not found.")
 
@@ -550,6 +550,128 @@ class Database(Generic[InputT, StateT]):
         return Event(
             type=row["type"],
             payload=json.loads(row["payload"]),
+        )
+
+    async def create_timer(self, workflow_id: str, fire_at: datetime) -> None:
+        """Create a timer task for a workflow.
+        Schedules a timer task to wake up the workflow at a specific time.
+        Args:
+            workflow_id: ID of the workflow to schedule the timer for
+            fire_at: Datetime when the timer should trigger
+        """
+        timer_id = self._create_id()
+
+        await self.create_event(
+            workflow_id,
+            "TIMER_SCHEDULED",
+            {
+                "timer_id": timer_id,
+                "fire_at": fire_at.isoformat(),
+            },
+        )
+
+        await self.execute(
+            """
+                INSERT INTO tasks (
+                    id, workflow_id, kind, target, run_at, status
+                )
+                VALUES (?, ?, 'TIMER', '__timer__', ?, 'PENDING')
+            """,
+            (timer_id, workflow_id, fire_at),
+        )
+
+    async def release_task(self, task_id: str) -> None:
+        """
+        Release a claimed task back to PENDING.
+        Used when the task cannot be executed yet (e.g. TIMER not due).
+        Args:
+            task_id: Unique identifier of the task to release
+        """
+        await self.execute(
+            """
+            UPDATE tasks
+            SET status = 'PENDING',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            AND status = 'RUNNING'
+            """,
+            (task_id,),
+        )
+
+    async def rotate_workflow_driver(self, workflow_id: str) -> None:
+        """
+        Retire the currently running workflow driver and enqueue a new one.
+        Called when an unblock event (activity/timer/signal) occurs.
+        """
+
+        id = self._create_id()
+
+        workflow = await self.get_workflow_info(workflow_id)
+
+        # 1. Complete old driver
+        await self.execute(
+            """
+            UPDATE tasks
+            SET status = 'COMPLETED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workflow_id = ?
+            AND kind = 'STEP'
+            AND status = 'RUNNING'
+            """,
+            (workflow_id,),
+        )
+
+        # 2. Enqueue new driver
+        await self.execute(
+            """
+            INSERT INTO tasks (
+                id, workflow_id, kind, target, status, run_at
+            )
+            VALUES (?, ?, 'STEP', ?, 'PENDING', CURRENT_TIMESTAMP)
+            """,
+            (id, workflow_id, workflow["name"]),
+        )
+
+    async def complete_running_step(self, workflow_id: str):
+        await self.execute(
+            """
+            UPDATE tasks
+            SET status = 'COMPLETED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workflow_id = ?
+            AND kind = 'STEP'
+            AND status = 'RUNNING'
+            """,
+            (workflow_id,),
+        )
+
+    async def workflow_is_completed(self, workflow_id: str) -> bool:
+        row = await self.fetchone(
+            """
+            SELECT 1
+            FROM events
+            WHERE workflow_id = ?
+            AND type = 'WORKFLOW_COMPLETED'
+            LIMIT 1
+            """,
+            (workflow_id,),
+        )
+        return row is not None
+
+    async def create_log(self, workflow_id: str, level: str, message: str) -> None:
+        """Create a log entry for a workflow.
+
+        Args:
+            workflow_id: ID of the workflow to associate the log with
+            level: Log level (e.g., 'INFO', 'ERROR')
+            message: Log message content
+        """
+        await self.execute(
+            """
+            INSERT INTO logs (workflow_id, level, message, created_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (workflow_id, level, message),
         )
 
     # === Context Manager Methods ===

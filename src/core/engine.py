@@ -1,6 +1,7 @@
 from typing import Generic
 
 from ..common.activity import load_activity
+from ..common.errors import StopReplay
 from ..common.workflow import workflow_registry
 from ..database.db import Database
 from ..schemas.activity import ActivityMetadata
@@ -66,35 +67,35 @@ class Engine(Generic[InputT, StateT]):
 
     @staticmethod
     async def replay_until_block(workflow_id: str) -> None:
-        """Replay workflow execution until a blocking operation is encountered.
-
-        This method reconstructs workflow context from event history and
-        re-executes workflow steps deterministically. Execution continues
-        until a StopReplay exception is raised (typically when an activity
-        needs to be scheduled or completed).
-
-        Args:
-            workflow_id: Unique identifier of the workflow instance to replay
-
-        Note:
-            This method is designed to be idempotent and safe to call
-            multiple times for the same workflow instance.
-        """
         # Load workflow event history
         async with Database[InputT, StateT]() as db:
             workflow_def = await db.get_workflow_info(workflow_id)
             history = await db.get_workflow_events(workflow_id=workflow_def["id"])
 
-        # Create execution context
         ctx: WorkflowContext = WorkflowContext(
             workflow_def["id"], workflow_def["input"], history, {}
         )
 
-        # Load workflow class and create instance
+        first_event = ctx._peek()
+        if first_event and first_event["type"] == "WORKFLOW_STARTED":
+            ctx._consume()
+
         workflow_cls = workflow_registry(workflow_def["module"], workflow_def["name"])
         workflow = workflow_cls()
         steps = workflow._discover_workflow_steps()
 
-        for step in steps:
-            step_fn = getattr(workflow, step["fn"])
-            await step_fn(ctx)
+        try:
+            for step in steps:
+                step_fn = getattr(workflow, step["fn"])
+                await step_fn(ctx)
+
+        except StopReplay:
+            last = ctx.last_emitted_event_type()
+            if last in ("STATE_SET", "STATE_UPDATE"):
+                async with Database[InputT, StateT]() as db:
+                    await db.rotate_workflow_driver(workflow_id)
+            return
+
+        async with Database[InputT, StateT]() as db:
+            await db.create_event(workflow_id, "WORKFLOW_COMPLETED", {})
+            await db.complete_running_step(workflow_id)

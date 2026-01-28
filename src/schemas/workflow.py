@@ -2,11 +2,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Awaitable, Callable, TypedDict, TypeVar
 
-StateT = TypeVar("StateT")
+StateT = TypeVar("StateT", bound=dict)
 
 Func = TypeVar("Func", bound=Callable[..., Awaitable[object]])
 
-InputT = TypeVar("InputT")
+InputT = TypeVar("InputT", bound=dict)
 
 ClsT = TypeVar("ClsT")
 

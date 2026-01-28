@@ -20,13 +20,13 @@ class Task(TypedDict):
     workflow_id: str
     kind: TaskKind
     target: str
-    run_at: datetime
+    run_at: str
     status: TaskStatus
     attempts: int
     max_attempts: int
     last_error: str | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
 
 
 class TaskInput(TypedDict):

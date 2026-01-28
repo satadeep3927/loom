@@ -52,3 +52,13 @@ class StopReplay(Exception):
     """
 
     pass
+
+
+class NonDeterministicWorkflowError(Exception):
+    """Exception raised when a workflow execution diverges from its recorded history.
+
+    This typically indicates that the workflow code has changed in a way that
+    affects its execution path, leading to inconsistencies during replay.
+    """
+
+    pass

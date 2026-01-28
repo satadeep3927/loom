@@ -1,6 +1,14 @@
-
+# Core dependencies
 aiosqlite
-# Development dependencies
+setuptools>=65.0.0
+# CLI and beautification
+click>=8.0.0
+rich>=13.0.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
 mypy
 black
 isort

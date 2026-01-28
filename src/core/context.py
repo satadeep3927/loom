@@ -1,13 +1,17 @@
-from math import e
-from typing import Any, Awaitable, Callable, List
+import datetime
+from datetime import timedelta
+from typing import Any, Awaitable, Callable, Generic, List
 
-from ..common.errors import StopReplay
+from ..common.errors import NonDeterministicWorkflowError, StopReplay
 from ..database.db import Database
 from ..schemas.activity import ActivityMetadata
 from ..schemas.events import Event
+from ..schemas.workflow import InputT, StateT
+from .logger import WorkflowLogger
+from .state import StateProxy
 
 
-class WorkflowContext[InputT, StateT]:
+class WorkflowContext(Generic[InputT, StateT]):
     """Execution context for workflow steps with replay capabilities.
 
     The WorkflowContext provides a controlled execution environment for workflow
@@ -30,8 +34,9 @@ class WorkflowContext[InputT, StateT]:
     id: str
     input: InputT
     history: List[Event]
-    state: StateT
+    state: StateProxy[InputT, StateT]
     cursor: int = 0
+    logger: WorkflowLogger
 
     def __init__(
         self, id: str, input: InputT, history: List[Event], state: StateT
@@ -47,7 +52,8 @@ class WorkflowContext[InputT, StateT]:
         self.id = id
         self.input = input
         self.history = history
-        self.state = state
+        self.state = StateProxy(self, state)
+        self.logger = WorkflowLogger(self)
 
     # === Private Replay Management Methods ===
 
@@ -75,6 +81,26 @@ class WorkflowContext[InputT, StateT]:
             raise RuntimeError("No event available to consume")
         self.cursor += 1
         return event
+
+    def _match_event(self, expected_type: str) -> Event | None:
+        """
+        Safe helper to check if the NEXT event matches what we expect.
+        Returns the event if it matches (does NOT consume).
+        Returns None if the next event is something else (or end of history).
+        """
+        event = self._peek()
+        if event and event["type"] == expected_type:
+            return event
+        return None
+
+    @property
+    def is_replaying(self) -> bool:
+        """Check if the workflow is currently replaying events.
+
+        Returns:
+            True if there are remaining events to replay, False otherwise
+        """
+        return self.cursor < len(self.history)
 
     def _extract_activity_metadata[FuncReturn](
         self, fn: Callable[..., Awaitable[FuncReturn]], args: tuple[Any, ...]
@@ -108,69 +134,34 @@ class WorkflowContext[InputT, StateT]:
         fn: Callable[..., Awaitable[FuncReturn]],
         *args,
     ) -> FuncReturn:
-        """Execute an activity with replay-safe semantics.
-
-        During replay, returns the cached result from history if the activity
-        was already completed. During initial execution or after replay,
-        schedules the activity for execution and stops replay to allow the
-        worker to process it.
-
-        Args:
-            fn: Activity function to execute
-            *args: Arguments to pass to the activity function
-
-        Returns:
-            Activity result (from cache during replay, or after execution)
-
-        Raises:
-            StopReplay: When activity needs to be scheduled or is pending
-        """
         metadata = self._extract_activity_metadata(fn, args)
-        while True:
-            event = self._peek()
-            if not event:
-                break
 
-            if event["type"] == "WORKFLOW_STARTED":
-                # bootstrap event – already handled elsewhere or handle here
+        scheduled_event = self._match_event("ACTIVITY_SCHEDULED")
+
+        if scheduled_event:
+            if scheduled_event["payload"]["name"] != metadata["name"]:
+                raise NonDeterministicWorkflowError(
+                    f"Replay mismatch: Expected activity {metadata['name']}, "
+                    f"found {scheduled_event['payload']['name']} in history."
+                )
+
+            self._consume()
+
+            completed_event = self._match_event("ACTIVITY_COMPLETED")
+
+            if completed_event:
                 self._consume()
-                continue
+                return completed_event["payload"]["result"]  # type: ignore
 
-            if event["type"] not in (
-                "ACTIVITY_SCHEDULED",
-                "ACTIVITY_COMPLETED",
-            ):
-                # some other event (STATE_SET, etc.)
-                self._consume()
-                continue
-
-            # now we are at an activity-related event
-            break
-        event = self._peek()
-
-        print(event)
-
-        # Return cached result if activity was already completed
-        if event and event["type"] == "ACTIVITY_SCHEDULED":
-            assert event["payload"]["name"] == metadata["name"]
-            self._consume()  # IMPORTANT: consume scheduled
-
-            next_event = self._peek()
-            if next_event and next_event["type"] == "ACTIVITY_COMPLETED":
-                assert next_event["payload"]["name"] == metadata["name"]
-                completed = self._consume()
-                return completed["payload"]["result"]
-
-            # Scheduled but not yet completed
             raise StopReplay
 
-        # Case: completed without scheduled (should not happen, but be defensive)
-        if event and event["type"] == "ACTIVITY_COMPLETED":
-            assert event["payload"]["name"] == metadata["name"]
-            completed = self._consume()
-            return completed["payload"]["result"]
+        unexpected_event = self._peek()
+        if unexpected_event:
+            raise NonDeterministicWorkflowError(
+                f"Replay mismatch: Code wants to schedule activity {metadata['name']}, "
+                f"but history contains {unexpected_event['type']}."
+            )
 
-        # Schedule new activity for execution
         async with Database[InputT, StateT]() as db:
             await db.create_activity(
                 workflow_id=self.id,
@@ -178,3 +169,88 @@ class WorkflowContext[InputT, StateT]:
             )
 
         raise StopReplay
+
+    async def sleep(
+        self, delta: timedelta | None = None, until: datetime.datetime | None = None
+    ) -> None:
+        if delta is None and until is None:
+            raise ValueError("Either 'delta' or 'until' must be provided")
+
+        fire_at: datetime.datetime = (
+            datetime.datetime.now(datetime.timezone.utc) + delta if delta else until  # type: ignore
+        )
+
+        scheduled_event = self._match_event("TIMER_SCHEDULED")
+
+        if scheduled_event:
+            self._consume()
+
+            fired_event = self._match_event("TIMER_FIRED")
+            if fired_event:
+                self._consume()
+                return  # Timer is done
+
+            raise StopReplay
+
+        unexpected_event = self._peek()
+        if unexpected_event:
+            raise NonDeterministicWorkflowError(
+                f"Replay mismatch: Code wants to sleep, "
+                f"but history contains {unexpected_event['type']}."
+            )
+
+        async with Database[InputT, StateT]() as db:
+            await db.create_timer(self.id, fire_at)
+
+        raise StopReplay
+
+    async def wait_until_signal(self, signal_name: str) -> Any:
+        """Pauses the workflow until a specific signal is received.
+
+        If the signal is already in history (replay), it returns the data immediately.
+        If not, it raises StopReplay to suspend execution until the signal arrives.
+        """
+        # 1. Check if the signal is next in history
+        event = self._match_event("SIGNAL_RECEIVED")
+
+        if event:
+            # STRICT CHECK: Ensure this is the signal we are waiting for.
+            # If the history has "Signal B" but we are waiting for "Signal A",
+            # it means the code logic has changed or the flow is non-deterministic.
+            if event["payload"]["name"] != signal_name:
+                raise NonDeterministicWorkflowError(
+                    f"Replay mismatch: Expected signal '{signal_name}', "
+                    f"but history contains signal '{event['payload']['name']}'."
+                )
+
+            self._consume()
+            return event["payload"]["data"]
+
+        unexpected_event = self._peek()
+        if unexpected_event:
+            raise NonDeterministicWorkflowError(
+                f"Replay mismatch: Workflow expecting signal '{signal_name}', "
+                f"but history contains {unexpected_event['type']}."
+            )
+
+        self.logger.info(f"Waiting for signal: {signal_name}")
+        raise StopReplay
+
+    def last_emitted_event_type(self) -> str | None:
+        """Get the type of the last emitted event in the history."""
+        return self.history[-1]["type"]
+
+    async def _append_event(self, type: str, payload: dict[str, Any]) -> None:
+        """Append a new event to the workflow's event history in the database.
+
+        Args:
+            type: Type of the event to append
+            payload: Payload data for the event
+        """
+        async with Database[InputT, StateT]() as db:
+            await db.create_event(
+                workflow_id=self.id,
+                type=type,
+                payload=payload,
+            )
+        self.history.append({"type": type, "payload": payload})

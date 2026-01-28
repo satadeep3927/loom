@@ -1,24 +1,53 @@
-import trace
+import datetime
 import traceback
+
 from ..common.errors import StopReplay
 from ..database.db import Database
 from .engine import Engine
 
 
-async def run_once():
-    async with Database() as db:
+async def run_once() -> bool:
+    """Execute a single task from the queue.
+
+    Returns:
+        bool: True if a task was executed, False if no tasks available
+    """
+    db: Database = Database()
+    async with db:
         task = await db.claim_task()
         if not task:
-            return
+            return False
+
         workflow_id = task["workflow_id"]
+        is_completed = await db.workflow_is_completed(workflow_id)
+        if is_completed:
+            await db.task_completed(task["id"])
+            return True
+
         try:
             if task["kind"] == "STEP":
                 await Engine.replay_until_block(workflow_id)
             elif task["kind"] == "ACTIVITY":
                 await Engine.replay_activity(task)
+            elif task["kind"] == "TIMER":
+                now = datetime.datetime.now(datetime.timezone.utc)
+                run_at = datetime.datetime.fromisoformat(task["run_at"])
+                if now < run_at:
+                    await db.release_task(task["id"])
+                    return True
+
+                await db.create_event(
+                    workflow_id=workflow_id,
+                    type="TIMER_FIRED",
+                    payload={},
+                )
+
+                await db.rotate_workflow_driver(task["workflow_id"])
             await db.task_completed(task["id"])
+            return True
         except StopReplay:
-            pass
+            return True
         except Exception as e:
             traceback.print_exc()
             await db.task_failed(task["id"], str(e))
+            return True

@@ -1,413 +1,214 @@
-# Loom — Final Design & Implementation Document (Typed Edition)
+# Loom - Durable Workflow Orchestration
 
-*A Deterministic, Durable, Typed Workflow Orchestration Library for Python*
+## Project Overview
 
-> **This version updates the Loom design to include strong typing using `typing.Generic`,
-> so both humans and Copilot can reason about workflow state, inputs, and ctx correctly.**
+Loom is a Python-based durable workflow orchestration engine inspired by Temporal and Durable Task Framework. It provides event-sourced, deterministic workflow execution with automatic recovery and replay capabilities.
 
----
+## Core Concepts
 
-## 1. Purpose & Scope
+### Architecture Principles
 
-**Loom** is a **Temporal-inspired workflow orchestration library** for Python with:
+1. **Event Sourcing**: All workflow state changes are persisted as immutable events
+2. **Deterministic Replay**: Workflows can be reconstructed from event history
+3. **Separation of Concerns**: Workflow logic (deterministic) vs Activities (side effects)
+4. **Durability**: Workflows survive process crashes and automatically recover
 
-* Deterministic, replay-driven workflows
-* Durable async execution
-* SQLite-based portability
-* Clear separation of orchestration vs side effects
-* **First-class static typing support**
+### Key Components
 
-This document is the **canonical reference** for implementing Loom.
+#### Workflows
+- Defined using `@workflow` decorator
+- Contain `@step` methods that execute sequentially
+- Must be deterministic (no random values, no direct I/O)
+- Use generic types: `Workflow[InputT, StateT]`
 
----
+#### Activities
+- Defined using `@activity` decorator
+- Handle all side effects (API calls, database writes, file I/O)
+- Support retry policies and timeouts
+- Should be idempotent when possible
 
-## 2. Core Design Principles
+#### Context (`WorkflowContext`)
+- Execution environment for workflow steps
+- Provides: `ctx.activity()`, `ctx.sleep()`, `ctx.state`, `ctx.logger`
+- Manages event replay and cursor position
+- Enforces determinism through event matching
 
-1. Determinism over convenience
-2. Replay is execution
-3. One workflow step at a time
-4. Side effects only via activities
-5. DB is memory + transport
-6. **Types describe workflow contracts**
+#### Engine
+- `replay_until_block()`: Replays workflow from history until blocking operation
+- `replay_activity()`: Re-executes activities with retry logic
+- Uses `StopReplay` exception to halt at non-deterministic operations
 
----
+#### Database
+- SQLite-based persistence with aiosqlite
+- Tables: `workflows`, `events`, `tasks`, `logs`
+- Migration system in `src/migrations/`
+- Task queue for asynchronous execution
 
-## 3. Typed Mental Model (Important)
-
-Loom workflows are parameterized by:
-
-* **Input type** – immutable
-* **State type** – mutable but deterministic
+### Type System
 
 ```python
-Workflow[Input, State]
+# Workflows are generic over Input and State types
+class MyWorkflow(Workflow[MyInput, MyState]):
+    @step()
+    async def my_step(self, ctx: WorkflowContext[MyInput, MyState]):
+        # ctx.input is of type MyInput (immutable)
+        # ctx.state is of type MyState (mutable)
+        pass
 ```
 
-This allows:
+## Code Modification Guidelines
 
-* Safer refactors
-* Copilot correctness
-* IDE autocompletion
-* Clear contracts
+### When Adding New Features
 
----
+1. **Maintain Event Sourcing**: All state changes must emit events
+2. **Preserve Determinism**: Workflow code must produce same events on replay
+3. **Use Type Hints**: Leverage generics and type annotations throughout
+4. **Follow Async Patterns**: All I/O operations should be async
+5. **Add Migrations**: Database schema changes require up/down migrations
 
-## 4. Public User API (Typed)
+### Event Types
 
----
+Current event types:
+- `WORKFLOW_STARTED`: Workflow creation
+- `WORKFLOW_COMPLETED`: Successful completion
+- `WORKFLOW_FAILED`: Fatal error
+- `STATE_SET`: Single state key update
+- `STATE_UPDATE`: Batch state update
+- `ACTIVITY_SCHEDULED`: Activity queued
+- `ACTIVITY_COMPLETED`: Activity success
+- `ACTIVITY_FAILED`: Activity permanent failure
+- `TIMER_FIRED`: Sleep/delay completed
+- `SIGNAL_RECEIVED`: External signal
 
-## 4.1 Workflow Definition (Typed)
+### Adding New Event Types
 
-```python
-from dataclasses import dataclass
-import loom
+1. Add to event schema in `src/schemas/events.py`
+2. Update replay logic in `Engine` and `WorkflowContext`
+3. Add event creation method in `Database`
+4. Create migration if storing in database
 
-@dataclass
-class AssessmentInput:
-    assessment_id: str
-
-@dataclass
-class AssessmentState:
-    sent: bool = False
-    submission: dict | None = None
-    result: dict | None = None
-
-
-@loom.workflow
-class AssessmentWorkflow(
-    loom.Workflow[AssessmentInput, AssessmentState]
-):
-
-    @loom.step
-    async def send(self, ctx: loom.WorkflowContext[AssessmentState]):
-        await ctx.activity(send_assessment, ctx.input.assessment_id)
-        ctx.state.sent = True
-
-    @loom.step
-    async def wait(self, ctx: loom.WorkflowContext[AssessmentState]):
-        await ctx.sleep(48 * 3600)
-
-    @loom.step
-    async def collect(self, ctx: loom.WorkflowContext[AssessmentState]):
-        ctx.state.submission = await ctx.activity(
-            fetch_submission,
-            ctx.input.assessment_id
-        )
-
-    @loom.step
-    async def validate(self, ctx: loom.WorkflowContext[AssessmentState]):
-        ctx.state.result = await ctx.activity(
-            run_validation_agent,
-            ctx.state.submission
-        )
-```
-
----
-
-## 5. Generic Types (Core)
-
-### 5.1 Workflow Base Class
+### Activity Best Practices
 
 ```python
-class Workflow(Generic[InputT, StateT]):
-    ...
-```
-
-* `InputT` → immutable input
-* `StateT` → deterministic state
-
----
-
-### 5.2 WorkflowContext (Typed)
-
-```python
-class WorkflowContext(Generic[StateT]):
-    workflow_id: str
-    input: Any
-    state: StateT
-```
-
-Used as:
-
-```python
-ctx: WorkflowContext[AssessmentState]
-```
-
----
-
-## 6. Compile / Execute / Start (Typed Semantics)
-
-### 6.1 Compile
-
-```python
-wf = AssessmentWorkflow.compile()
-```
-
-Returns:
-
-```python
-CompiledWorkflow[AssessmentInput, AssessmentState]
-```
-
-Responsibilities:
-
-* Freeze structure
-* Validate steps
-* Compute source hash
-* Cache definition
-
----
-
-### 6.2 Execute (Local, Typed)
-
-```python
-result_state: AssessmentState = await wf.execute(
-    AssessmentInput(assessment_id="A1")
+@activity(
+    name="descriptive_name",
+    retry_count=3,  # Retry up to 3 times
+    timeout_seconds=30  # 30 second timeout
 )
+async def my_activity(param: str) -> ReturnType:
+    # Should be idempotent - safe to retry
+    # Should handle failures gracefully
+    # Should use async I/O
+    pass
 ```
 
-Characteristics:
-
-* No DB
-* No replay
-* No workers
-* Direct async execution
-* Type-safe state access
-
----
-
-### 6.3 Start (Durable, Typed)
+### Workflow Best Practices
 
 ```python
-handle = await wf.start(
-    AssessmentInput(assessment_id="A1")
-)
+@workflow(name="MyWorkflow", version="1.0.0")
+class MyWorkflow(Workflow[MyInput, MyState]):
+    @step(name="initialization")
+    async def init_step(self, ctx: WorkflowContext[MyInput, MyState]):
+        # Use ctx.activity() for side effects
+        result = await ctx.activity(my_activity, ctx.input.param)
+        
+        # Update state (emits STATE_SET event)
+        await ctx.state.set("result", result)
+        
+        # Log (respects replay mode)
+        ctx.logger.info(f"Processed: {result}")
+        
+        # Sleep/delay (emits TIMER event)
+        await ctx.sleep(timedelta(seconds=5))
 ```
 
-Returns:
-
-```python
-WorkflowHandle[AssessmentState]
-```
-
----
-
-## 7. WorkflowHandle (Typed)
-
-```python
-class WorkflowHandle(Generic[StateT]):
-    id: str
-
-    async def status(self) -> WorkflowStatus: ...
-    async def result(self) -> StateT: ...
-    async def signal(self, name: str, **payload) -> None: ...
-```
-
----
-
-## 8. WorkflowContext API (Typed, Final)
-
-### 8.1 Execution APIs
-
-```python
-await ctx.activity(fn, *args, **kwargs)
-await ctx.sleep(seconds: int)
-await ctx.wait_for_signal(name: str) -> dict
-await ctx.start_workflow(
-    WorkflowCls,
-    input: InputT
-)
-```
-
----
-
-### 8.2 State Access (Strongly Typed)
-
-```python
-ctx.state.sent = True
-ctx.state.submission = submission
-```
-
-Rules:
-
-* State must be JSON-serializable
-* Mutations are persisted as events
-* State is rebuilt during replay
-
----
-
-### 8.3 What ctx Must NOT Expose
-
-❌ DB access
-❌ system clock
-❌ randomness
-❌ filesystem
-❌ network
-
-This enforces determinism.
-
----
-
-## 9. Activities (Typed Side Effects)
-
-### 9.1 Definition
-
-```python
-@loom.activity(retry=3, timeout=30)
-async def fetch_submission(assessment_id: str) -> dict:
-    ...
-```
-
-Activities:
-
-* Can be fully typed
-* Return values are persisted
-* Are replay-safe
-
----
-
-### 9.2 ctx.activity Typing
-
-```python
-T = TypeVar("T")
-
-async def activity(
-    self,
-    fn: Callable[..., Awaitable[T]],
-    *args
-) -> T
-```
-
-Copilot understands return types correctly.
-
----
-
-## 10. Execution & Replay (Typed Flow)
-
-* Workflow code always re-runs from step 1
-* Completed steps are skipped
-* Activity results are loaded from history
-* State is reconstructed deterministically
-
-Types are **compile-time only**; runtime behavior is unchanged.
-
----
-
-## 11. Scheduling & Time
-
-### 11.1 Typed Sleep
-
-```python
-await ctx.sleep(3600)
-```
-
-Persists:
-
-```json
-{ "type": "TIMER_SCHEDULED", "fire_at": "..." }
-```
-
----
-
-## 12. Signals (Typed Payloads)
-
-```python
-await handle.signal(
-    "approve",
-    reviewer_id="U1"
-)
-```
-
-Workflow side:
-
-```python
-signal: dict = await ctx.wait_for_signal("approve")
-```
-
-(You may later introduce `TypedSignal[T]`.)
-
----
-
-## 13. Parallelism Rules (Unchanged)
-
-| Level                 | Parallel |
-| --------------------- | -------- |
-| Workflow instances    | ✅        |
-| Activities            | ✅        |
-| Steps (same workflow) | ❌        |
-
-Typing does **not** affect concurrency semantics.
-
----
-
-## 14. Database Schema (Unchanged)
-
-### workflows
-
-```sql
-id TEXT PRIMARY KEY
-name TEXT
-status TEXT
-created_at
-```
-
-### events (append-only)
-
-```sql
-id INTEGER PRIMARY KEY AUTOINCREMENT
-workflow_id TEXT
-type TEXT
-payload JSON
-created_at
-```
-
-### tasks
-
-```sql
-id TEXT PRIMARY KEY
-workflow_id TEXT
-kind TEXT
-target TEXT
-run_at TIMESTAMP
-status TEXT
-```
-
----
-
-## 15. Failure & Recovery (Typed Safety)
-
-* Worker crashes do not corrupt state
-* Activity retries preserve types
-* Replay restores state accurately
-
----
-
-## 16. Non-Goals (v1)
-
-* Parallel steps inside a workflow
-* In-memory-only execution
-* Cross-workflow shared state
-* Typed signal schemas (v2)
-
----
-
-## 17. Final Typed Mental Model
+### Testing Considerations
+
+- Mock the database layer for unit tests
+- Test replay behavior with different event sequences
+- Verify idempotency of activities
+- Test failure and retry scenarios
+- Validate state reconstruction from events
+
+### Common Pitfalls to Avoid
+
+❌ **Don't** use random values in workflows (breaks determinism)
+❌ **Don't** perform I/O directly in workflow steps (use activities)
+❌ **Don't** use `datetime.now()` in workflows (use `ctx.sleep()`)
+❌ **Don't** modify state without using `ctx.state` proxy
+❌ **Don't** catch `StopReplay` exception (internal control flow)
+
+✅ **Do** use activities for all side effects
+✅ **Do** make activities idempotent
+✅ **Do** use type hints throughout
+✅ **Do** emit events for all state changes
+✅ **Do** validate inputs at workflow boundaries
+
+### File Organization
 
 ```
-Workflow[Input, State]  → deterministic logic
-WorkflowContext[State] → controlled execution boundary
-Activity[T]            → side effects + data transport
-SQLite                 → memory + transport
-Replay                 → execution engine
+src/
+├── common/          # Shared utilities and base classes
+│   ├── activity.py  # Activity loader
+│   ├── config.py    # Configuration
+│   ├── errors.py    # Custom exceptions
+│   └── workflow.py  # Workflow registry
+├── core/            # Core engine components
+│   ├── compiled.py  # CompiledWorkflow
+│   ├── context.py   # WorkflowContext
+│   ├── engine.py    # Replay engine
+│   ├── handle.py    # WorkflowHandle
+│   ├── logger.py    # WorkflowLogger
+│   ├── runner.py    # Task runner
+│   ├── state.py     # StateProxy
+│   └── workflow.py  # Base Workflow class
+├── database/        # Data persistence
+│   └── db.py        # Database interface
+├── decorators/      # Public API decorators
+│   ├── activity.py  # @activity
+│   └── workflow.py  # @workflow, @step
+├── migrations/      # Database migrations
+│   ├── up/         # Upgrade scripts
+│   └── down/       # Downgrade scripts
+└── schemas/         # Type definitions
+    ├── activity.py
+    ├── context.py
+    ├── database.py
+    ├── events.py
+    ├── tasks.py
+    └── workflow.py
 ```
 
----
+### Performance Notes
 
-## 18. Final Notes
+- SQLite is sufficient for development/small scale
+- Consider PostgreSQL/MySQL for production scale
+- Task claiming uses `SELECT FOR UPDATE` (single worker currently)
+- Activity execution is async but tasks are processed sequentially
 
-This typed design gives you:
+### Debugging Tips
 
-* Temporal-grade correctness
-* Python-native ergonomics
-* IDE + Copilot intelligence
-* Future-safe refactoring
+1. Check `workflows.db` for event history
+2. Use `ctx.logger` for replay-safe logging
+3. Inspect task queue state in `tasks` table
+4. Review migration scripts when schema issues occur
+5. Set log level to DEBUG for verbose output
+
+## Dependencies
+
+Core:
+- `aiosqlite`: Async SQLite database
+- Python 3.12+ (uses new type parameter syntax)
+
+Development:
+- `pytest`: Testing framework
+- `mypy`: Static type checking
+- `black`: Code formatting
+- `ruff`: Linting
+
+## Version History
+
+This is an active development project. Always maintain backward compatibility for:
+- Event schemas (old workflows must replay)
+- Database schema (migrations required)
+- Public API (@workflow, @activity, @step decorators)

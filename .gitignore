@@ -98,6 +98,16 @@ logs/
 .dmypy.json
 dmypy.json
 
+# Type checking
+.pyre/
+.pytype/
+
+# Ruff
+.ruff_cache/
+
+# Example workflows output
+workflows.db
+
 # Pyre
 .pyre/
 
@@ -113,3 +123,4 @@ dmypy.json
 *.backup
 scratch/
 temp/
+.loom
