@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loom-core"
-version = "0.1.1"
+version = "0.1.2"
 description = "Durable workflow orchestration engine for Python"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -50,11 +50,11 @@ Repository = "https://github.com/satadeep3927/loom"
 Issues = "https://github.com/satadeep3927/loom/issues"
 
 [tool.setuptools]
-packages = ["src", "src.common", "src.core", "src.database", "src.decorators", "src.lib", "src.schemas", "src.cli", "src.migrations"]
+packages = ["loom", "loom.common", "loom.core", "loom.database", "loom.decorators", "loom.lib", "loom.schemas", "loom.cli", "loom.migrations"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-src = ["migrations/up/*.sql", "migrations/down/*.sql"]
+loom = ["migrations/up/*.sql", "migrations/down/*.sql"]
 
 [tool.black]
 line-length = 88
@@ -78,7 +78,7 @@ exclude = ["setup.py", "tests", "examples"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
-addopts = "-v --cov=src --cov-report=term-missing"
+addopts = "-v --cov=loom --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 88
