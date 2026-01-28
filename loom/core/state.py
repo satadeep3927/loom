@@ -32,6 +32,7 @@ class StateProxy(Generic[InputT, StateT]):
         event = self._ctx._peek()
         if event and event["type"] == "STATE_SET" and event["payload"]["key"] == name:
             self._ctx._consume()
+            self._data[name] = value
             return
 
         event = ("STATE_SET", {"key": name, "value": value})
@@ -56,6 +57,8 @@ class StateProxy(Generic[InputT, StateT]):
             payload = event["payload"]
             if set(payload["values"].keys()) == set(updaters.keys()):
                 self._ctx._consume()
+                for key, value in payload["values"].items():
+                    self._data[key] = value
                 return
         new_values = {}
 
