@@ -82,6 +82,19 @@ class WorkflowContext(Generic[InputT, StateT]):
         self.cursor += 1
         return event
 
+    def _skip_step_events(self) -> None:
+        """Skip over STEP_START and STEP_END events during replay.
+        
+        These are internal workflow management events that don't affect
+        the deterministic execution logic.
+        """
+        while True:
+            event = self._peek()
+            if event and event["type"] in ("STEP_START", "STEP_END"):
+                self._consume()
+            else:
+                break
+
     def _match_event(self, expected_type: str) -> Event | None:
         """
         Safe helper to check if the NEXT event matches what we expect.
@@ -145,6 +158,8 @@ class WorkflowContext(Generic[InputT, StateT]):
     ) -> FuncReturn:
         metadata = self._extract_activity_metadata(fn, args)
 
+        # Skip any step events first
+        self._skip_step_events()
         scheduled_event = self._match_event("ACTIVITY_SCHEDULED")
 
         if scheduled_event:
@@ -156,6 +171,8 @@ class WorkflowContext(Generic[InputT, StateT]):
 
             self._consume()
 
+            # Skip step events before checking for completion
+            self._skip_step_events()
             completed_event = self._match_event("ACTIVITY_COMPLETED")
 
             if completed_event:
@@ -164,6 +181,8 @@ class WorkflowContext(Generic[InputT, StateT]):
 
             raise StopReplay
 
+        # Skip step events before checking for unexpected events
+        self._skip_step_events()
         unexpected_event = self._peek()
         if unexpected_event:
             raise NonDeterministicWorkflowError(
@@ -189,11 +208,16 @@ class WorkflowContext(Generic[InputT, StateT]):
             datetime.datetime.now(datetime.timezone.utc) + delta if delta else until  # type: ignore
         )
 
+        # Skip any step events first
+        self._skip_step_events()
+        
         scheduled_event = self._match_event("TIMER_SCHEDULED")
 
         if scheduled_event:
             self._consume()
 
+            # Skip step events before checking for timer fired
+            self._skip_step_events()
             fired_event = self._match_event("TIMER_FIRED")
             if fired_event:
                 self._consume()
@@ -201,6 +225,8 @@ class WorkflowContext(Generic[InputT, StateT]):
 
             raise StopReplay
 
+        # Skip step events before checking for unexpected events
+        self._skip_step_events()
         unexpected_event = self._peek()
         if unexpected_event:
             raise NonDeterministicWorkflowError(
@@ -219,6 +245,8 @@ class WorkflowContext(Generic[InputT, StateT]):
         If the signal is already in history (replay), it returns the data immediately.
         If not, it raises StopReplay to suspend execution until the signal arrives.
         """
+        # Skip any step events first
+        self._skip_step_events()
         # 1. Check if the signal is next in history
         event = self._match_event("SIGNAL_RECEIVED")
 
@@ -235,6 +263,8 @@ class WorkflowContext(Generic[InputT, StateT]):
             self._consume()
             return event["payload"]["data"]
 
+        # Skip step events before checking for unexpected events
+        self._skip_step_events()
         unexpected_event = self._peek()
         if unexpected_event:
             raise NonDeterministicWorkflowError(
