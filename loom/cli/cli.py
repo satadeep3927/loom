@@ -71,6 +71,63 @@ def worker(workers: int, poll_interval: float):
 
 
 @cli.command()
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    help="Host to bind to",
+    show_default=True,
+)
+@click.option(
+    "--port",
+    default=8000,
+    type=int,
+    help="Port to bind to",
+    show_default=True,
+)
+@click.option(
+    "--reload",
+    is_flag=True,
+    help="Enable auto-reload for development",
+)
+def web(host: str, port: int, reload: bool):
+    """Start the Loom web dashboard.
+
+    Launches a FastAPI-based web interface for monitoring and managing
+    workflows, tasks, events, and logs with real-time Server-Sent Events.
+
+    Examples:
+        loom web                       # Start on 127.0.0.1:8000
+        loom web --host 0.0.0.0        # Bind to all interfaces
+        loom web --port 3000           # Use port 3000
+        loom web --reload              # Enable auto-reload for development
+    """
+    try:
+        import uvicorn
+
+        console.print("[bold green]Starting Loom web dashboard...[/bold green]")
+        console.print(f"[blue]Dashboard: http://{host}:{port}[/blue]")
+        console.print(f"[blue]API docs: http://{host}:{port}/docs[/blue]")
+        console.print(f"[blue]ReDoc: http://{host}:{port}/redoc[/blue]")
+
+        uvicorn.run(
+            "loom.web.main:app",
+            host=host,
+            port=port,
+            reload=reload,
+            log_level="info",
+            access_log=not reload,  # Reduce noise in dev mode
+        )
+    except ImportError:
+        console.print("[red]FastAPI and uvicorn are required for web dashboard[/red]")
+        console.print(
+            "[yellow]Install with: pip install 'loom[web]' or pip install fastapi uvicorn[standard][/yellow]"
+        )
+        sys.exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Web server stopped[/yellow]")
+
+
+@cli.command()
 def init():
     """Initialize the Loom database and migrations.
 

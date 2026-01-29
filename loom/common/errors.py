@@ -22,7 +22,7 @@ class WorkerCancelledError(Exception):
     pass
 
 
-class StopReplay(Exception):
+class StopReplay(Exception):  # noqa: N818
     """
     Exception used to signal that workflow replay should stop.
 

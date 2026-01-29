@@ -86,7 +86,7 @@ class WorkflowContext(Generic[InputT, StateT]):
 
     def _skip_step_events(self) -> None:
         """Skip over STEP_START and STEP_END events during replay.
-        
+
         These are internal workflow management events that don't affect
         the deterministic execution logic.
         """
@@ -117,6 +117,7 @@ class WorkflowContext(Generic[InputT, StateT]):
         """
         # We're replaying if we haven't consumed all the original events yet
         return self.cursor < self._original_history_length
+
     def is_at_end_of_history(self) -> bool:
         """Check if we've consumed all events in history.
 
@@ -211,7 +212,7 @@ class WorkflowContext(Generic[InputT, StateT]):
 
         # Skip any step events first
         self._skip_step_events()
-        
+
         scheduled_event = self._match_event("TIMER_SCHEDULED")
 
         if scheduled_event:

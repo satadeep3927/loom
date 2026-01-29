@@ -346,7 +346,11 @@ class Database(Generic[InputT, StateT]):
         )
 
     async def workflow_failed(
-        self, workflow_id: str, error: str, task_id: str|None = None, task_kind: str|None = None
+        self,
+        workflow_id: str,
+        error: str,
+        task_id: str | None = None,
+        task_kind: str | None = None,
     ) -> None:
         """Mark a workflow as failed due to an unhandled exception.
 
@@ -436,9 +440,10 @@ class Database(Generic[InputT, StateT]):
             INSERT INTO events (workflow_id, type, payload)
             VALUES (?, 'WORKFLOW_COMPLETED', ?)
             """,
-            (workflow_id, json.dumps({
-                "completed_at": datetime.now(timezone.utc).isoformat()
-            })),
+            (
+                workflow_id,
+                json.dumps({"completed_at": datetime.now(timezone.utc).isoformat()}),
+            ),
         )
 
         # Update workflow status

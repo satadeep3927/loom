@@ -1,6 +1,10 @@
 # Core dependencies
 aiosqlite
 setuptools>=65.0.0
+# Web dashboard
+fastapi[standard]>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
 # CLI and beautification
 click>=8.0.0
 rich>=13.0.0

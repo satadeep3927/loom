@@ -26,7 +26,10 @@ classifiers = [
 dependencies = [
     "aiosqlite>=0.19.0",
     "click>=8.0.0",
-    "rich>=13.0.0",
+    "rich>=14.3.1",
+    "fastapi[standard]>=0.95.0",
+    "uvicorn[standard]>=0.22.0",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -83,6 +86,6 @@ addopts = "-v --cov=loom --cov-report=term-missing"
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-select = ["E", "F", "I", "N", "W"]
-ignore = ["E501"]
+lint.select = ["E", "F", "I", "N", "W"]
+lint.ignore = ["E501", "F405"]
 exclude = ["tests", "examples", "__pycache__"]
