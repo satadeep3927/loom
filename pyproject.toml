@@ -53,7 +53,7 @@ Repository = "https://github.com/satadeep3927/loom"
 Issues = "https://github.com/satadeep3927/loom/issues"
 
 [tool.setuptools]
-packages = ["loom", "loom.common", "loom.core", "loom.database", "loom.decorators", "loom.lib", "loom.schemas", "loom.cli", "loom.migrations"]
+packages = ["loom", "loom.common", "loom.core", "loom.database", "loom.decorators", "loom.lib", "loom.schemas", "loom.cli", "loom.migrations", "loom.web", "loom.web.api"]
 include-package-data = true
 
 [tool.setuptools.package-data]
