@@ -5,14 +5,18 @@ for monitoring and managing Loom workflows.
 """
 
 import json
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from ..database.db import Database
-from .api import events, logs, stats, tasks, workflows
+from .api import events, graphs, logs, stats, tasks, workflows
 
 
 @asynccontextmanager
@@ -124,6 +128,12 @@ app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
 app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
+app.include_router(graphs.router, prefix="/api/graphs", tags=["Graphs"])
+
+# Mount static files for React UI (must be after API routes)
+dist_dir = Path(__file__).parent / "dist"
+if dist_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(dist_dir / "assets")), name="assets")
 
 
 # Health check endpoints
@@ -263,9 +273,31 @@ async def _get_active_workflow_count(db: Database[Any, Any]) -> int:
 
 
 @app.get("/", include_in_schema=False)
-async def root():
-    """Root endpoint redirect to docs"""
-    return {"message": "Loom Dashboard API", "docs": "/docs"}
+async def root(request: Request):
+    """Serve React UI with API URL configuration"""
+    dist_dir = Path(__file__).parent / "dist"
+    index_file = dist_dir / "index.html"
+    
+    # Check if React build exists
+    if not index_file.exists():
+        return {"message": "Loom Dashboard API", "docs": "/docs", "note": "React UI not built"}
+    
+    # Read index.html
+    with open(index_file, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    
+    # Inject API URL configuration
+    api_url = str(request.base_url).rstrip('/')
+    config_script = f"""
+    <script>
+        window.__API_URL__ = "{api_url}";
+    </script>
+    """
+    
+    # Insert before </head> tag
+    html_content = html_content.replace("</head>", f"{config_script}</head>")
+    
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/health")
