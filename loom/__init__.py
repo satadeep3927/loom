@@ -25,6 +25,10 @@ from loom.database.db import Database
 from loom.decorators.activity import activity
 from loom.decorators.workflow import step, workflow
 
+# Import web module and app for uvicorn compatibility
+from loom import web
+from loom.web.main import app
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -40,6 +44,9 @@ __all__ = [
     # Functions
     "start_worker",
     "run_once",
+    # Web
+    "web",
+    "app",
     # Version
     "__version__",
 ]
