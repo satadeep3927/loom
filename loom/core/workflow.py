@@ -36,6 +36,22 @@ class Workflow(Generic[InputT, StateT]):
     """
 
     @classmethod
+    async def start(cls, input: InputT):
+        """
+        Start a new workflow instance with the given input.
+
+        This method compiles the workflow definition and initializes it with the provided input.
+        It is a convenience method that combines compilation and execution initiation.
+
+        Args:
+            input (InputT): The immutable input data for the workflow
+
+        Returns:
+            The Workflow Handle.
+        """
+        return await cls.compile().start(input)
+
+    @classmethod
     def compile(cls) -> CompiledWorkflow[InputT, StateT]:
         """
         Compile the workflow definition directly from the class.
