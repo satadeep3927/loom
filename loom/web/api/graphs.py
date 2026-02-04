@@ -29,6 +29,7 @@ async def get_db():
 
 class GraphFormatEnum(str, Enum):
     """Supported graph output formats"""
+
     JSON = "json"
     MERMAID = "mermaid"
     DOT = "dot"
@@ -68,22 +69,25 @@ class GraphFormatEnum(str, Enum):
     responses={
         404: {"model": ErrorResponse, "description": "Workflow not found"},
         400: {"model": ErrorResponse, "description": "Invalid workflow definition"},
-        500: {"model": ErrorResponse, "description": "Analysis failed"}
-    }
+        500: {"model": ErrorResponse, "description": "Analysis failed"},
+    },
 )
-async def get_workflow_definition_graph(workflow_id: str, db: Database = Depends(get_db)):
+async def get_workflow_definition_graph(
+    workflow_id: str, db: Database = Depends(get_db)
+):
     """Get workflow definition graph as structured data"""
     try:
         # Get workflow info from database
         workflow_info = await db.get_workflow_info(workflow_id)
         if not workflow_info:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow with ID '{workflow_id}' not found"
+                status_code=404, detail=f"Workflow with ID '{workflow_id}' not found"
             )
 
         # Get workflow class using module and name from database
-        workflow_class = workflow_registry(workflow_info["module"], workflow_info["name"])
+        workflow_class = workflow_registry(
+            workflow_info["module"], workflow_info["name"]
+        )
 
         # Analyze workflow definition
         graph = WorkflowAnalyzer.analyze_workflow_definition(workflow_class)
@@ -93,11 +97,12 @@ async def get_workflow_definition_graph(workflow_id: str, db: Database = Depends
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (ModuleNotFoundError, AttributeError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=f"Failed to load workflow class: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to load workflow class: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to analyze workflow: {str(e)}"
+            status_code=500, detail=f"Failed to analyze workflow: {str(e)}"
         )
 
 
@@ -131,16 +136,15 @@ async def get_workflow_definition_graph(workflow_id: str, db: Database = Depends
     responses={
         404: {"model": ErrorResponse, "description": "Workflow not found"},
         400: {"model": ErrorResponse, "description": "Invalid format or workflow"},
-        500: {"model": ErrorResponse, "description": "Rendering failed"}
-    }
+        500: {"model": ErrorResponse, "description": "Rendering failed"},
+    },
 )
 async def render_workflow_definition_graph(
     workflow_id: str,
     format: GraphFormatEnum = Query(
-        GraphFormatEnum.MERMAID,
-        description="Output format for the graph"
+        GraphFormatEnum.MERMAID, description="Output format for the graph"
     ),
-    db: Database = Depends(get_db)
+    db: Database = Depends(get_db),
 ):
     """Render workflow definition graph in specified format"""
     try:
@@ -148,12 +152,13 @@ async def render_workflow_definition_graph(
         workflow_info = await db.get_workflow_info(workflow_id)
         if not workflow_info:
             raise HTTPException(
-                status_code=404,
-                detail=f"Workflow with ID '{workflow_id}' not found"
+                status_code=404, detail=f"Workflow with ID '{workflow_id}' not found"
             )
 
         # Get workflow class using module and name from database
-        workflow_class = workflow_registry(workflow_info["module"], workflow_info["name"])
+        workflow_class = workflow_registry(
+            workflow_info["module"], workflow_info["name"]
+        )
 
         # Analyze workflow definition
         graph = WorkflowAnalyzer.analyze_workflow_definition(workflow_class)
@@ -166,10 +171,7 @@ async def render_workflow_definition_graph(
         elif format == GraphFormatEnum.DOT:
             content = generate_graphviz_dot(graph)
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported format: {format}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
         return GraphResponse(
             format=format.value,
@@ -179,19 +181,18 @@ async def render_workflow_definition_graph(
                 "workflow_name": workflow_info["name"],
                 "node_count": len(graph.nodes),
                 "edge_count": len(graph.edges),
-                **graph.metadata
-            }
+                **graph.metadata,
+            },
         )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (ModuleNotFoundError, AttributeError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=f"Failed to load workflow class: {str(e)}")
-    except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to render graph: {str(e)}"
+            status_code=400, detail=f"Failed to load workflow class: {str(e)}"
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to render graph: {str(e)}")
 
 
 @router.get(
@@ -203,7 +204,7 @@ async def render_workflow_definition_graph(
 
     Returns workflow IDs, names, versions, and basic metadata for each workflow.
     Use the workflow ID with the graph endpoints to generate visualizations.
-    """
+    """,
 )
 async def list_workflows_for_graphs(db: Database = Depends(get_db)):
     """List all workflows available for graph generation"""
@@ -218,24 +219,22 @@ async def list_workflows_for_graphs(db: Database = Depends(get_db)):
 
         workflow_list = []
         for workflow in workflows:
-            workflow_list.append({
-                "id": workflow["id"],
-                "name": workflow["name"],
-                "description": workflow["description"] or "",
-                "version": workflow["version"],
-                "module": workflow["module"],
-                "status": workflow["status"],
-                "created_at": workflow["created_at"],
-                "updated_at": workflow["updated_at"]
-            })
+            workflow_list.append(
+                {
+                    "id": workflow["id"],
+                    "name": workflow["name"],
+                    "description": workflow["description"] or "",
+                    "version": workflow["version"],
+                    "module": workflow["module"],
+                    "status": workflow["status"],
+                    "created_at": workflow["created_at"],
+                    "updated_at": workflow["updated_at"],
+                }
+            )
 
-        return {
-            "total_count": len(workflow_list),
-            "workflows": workflow_list
-        }
+        return {"total_count": len(workflow_list), "workflows": workflow_list}
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list workflows: {str(e)}"
+            status_code=500, detail=f"Failed to list workflows: {str(e)}"
         )

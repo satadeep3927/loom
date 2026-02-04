@@ -9,26 +9,29 @@ class GraphNode(BaseModel):
     id: str = Field(
         ...,
         description="Unique identifier for the node",
-        examples=["step_process_payment", "activity_send_email", "state_user_id"]
+        examples=["step_process_payment", "activity_send_email", "state_user_id"],
     )
     type: str = Field(
         ...,
         description="Type of the node",
-        examples=["step", "activity", "timer", "state"]
+        examples=["step", "activity", "timer", "state"],
     )
     label: str = Field(
         ...,
         description="Display label for the node",
-        examples=["Process Payment", "send_email", "Sleep 5s", "state.user_id"]
+        examples=["Process Payment", "send_email", "Sleep 5s", "state.user_id"],
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional metadata about the node",
         examples=[
-            {"description": "Processes user payment", "function": "process_payment_step"},
+            {
+                "description": "Processes user payment",
+                "function": "process_payment_step",
+            },
             {"retry_count": 3, "timeout_seconds": 30},
-            {"key": "user_id", "type": "string"}
-        ]
+            {"key": "user_id", "type": "string"},
+        ],
     )
 
 
@@ -39,36 +42,32 @@ class GraphEdge(BaseModel):
         ...,
         alias="from",
         description="Source node ID",
-        examples=["step_validate_input", "state_user_data"]
+        examples=["step_validate_input", "state_user_data"],
     )
     to_node: str = Field(
         ...,
         alias="to",
         description="Target node ID",
-        examples=["step_process_payment", "activity_send_notification"]
+        examples=["step_process_payment", "activity_send_notification"],
     )
     type: str = Field(
         ...,
         description="Type of relationship",
-        examples=["sequence", "calls", "reads", "writes", "waits"]
+        examples=["sequence", "calls", "reads", "writes", "waits"],
     )
     label: str = Field(
         default="",
         description="Display label for the edge",
-        examples=["then", "executes", "reads", "updates", "pauses for"]
+        examples=["then", "executes", "reads", "updates", "pauses for"],
     )
 
 
 class WorkflowDefinitionGraph(BaseModel):
     """Complete workflow definition graph structure."""
 
-    nodes: List[GraphNode] = Field(
-        ...,
-        description="List of nodes in the graph"
-    )
+    nodes: List[GraphNode] = Field(..., description="List of nodes in the graph")
     edges: List[GraphEdge] = Field(
-        ...,
-        description="List of edges connecting the nodes"
+        ..., description="List of edges connecting the nodes"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
@@ -77,9 +76,9 @@ class WorkflowDefinitionGraph(BaseModel):
             {
                 "workflow_name": "OrderProcessingWorkflow",
                 "workflow_version": "1.2.0",
-                "workflow_description": "Processes customer orders with payment and shipping"
+                "workflow_description": "Processes customer orders with payment and shipping",
             }
-        ]
+        ],
     )
 
     class Config:
@@ -96,8 +95,8 @@ class WorkflowDefinitionGraph(BaseModel):
                             "label": "Validate Order",
                             "metadata": {
                                 "description": "Validates order data and inventory",
-                                "function": "validate_order_step"
-                            }
+                                "function": "validate_order_step",
+                            },
                         },
                         {
                             "id": "activity_check_inventory",
@@ -105,37 +104,35 @@ class WorkflowDefinitionGraph(BaseModel):
                             "label": "check_inventory",
                             "metadata": {
                                 "called_from_step": "validate_order",
-                                "retry_count": 3
-                            }
+                                "retry_count": 3,
+                            },
                         },
                         {
                             "id": "state_order_valid",
                             "type": "state",
                             "label": "state.order_valid",
-                            "metadata": {
-                                "key": "order_valid"
-                            }
-                        }
+                            "metadata": {"key": "order_valid"},
+                        },
                     ],
                     "edges": [
                         {
                             "from": "step_validate_order",
                             "to": "activity_check_inventory",
                             "type": "calls",
-                            "label": "executes"
+                            "label": "executes",
                         },
                         {
                             "from": "step_validate_order",
                             "to": "state_order_valid",
                             "type": "writes",
-                            "label": "updates"
-                        }
+                            "label": "updates",
+                        },
                     ],
                     "metadata": {
                         "workflow_name": "OrderProcessingWorkflow",
                         "workflow_version": "1.0.0",
-                        "workflow_description": "Handles order processing with validation and payment"
-                    }
+                        "workflow_description": "Handles order processing with validation and payment",
+                    },
                 }
             ]
         }
@@ -147,7 +144,7 @@ class GraphFormat(BaseModel):
     format: str = Field(
         ...,
         description="Output format for the graph",
-        examples=["mermaid", "dot", "json"]
+        examples=["mermaid", "dot", "json"],
     )
 
 
@@ -157,13 +154,12 @@ class GraphResponse(BaseModel):
     format: str = Field(
         ...,
         description="Format of the generated graph",
-        examples=["mermaid", "dot", "json"]
+        examples=["mermaid", "dot", "json"],
     )
     content: str = Field(
-        ...,
-        description="Generated graph content in the specified format"
+        ..., description="Generated graph content in the specified format"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional metadata about the graph generation"
+        description="Additional metadata about the graph generation",
     )

@@ -24,6 +24,7 @@ from loom.core.workflow import Workflow
 from loom.database.db import Database
 from loom.decorators.activity import activity
 from loom.decorators.workflow import step, workflow
+from loom.schemas.state import Input, State
 
 __version__ = "0.1.0"
 
@@ -42,12 +43,17 @@ __all__ = [
     "run_once",
     # Version
     "__version__",
+    # Schemas
+    "State",
+    "Input",
 ]
+
 
 # Import app lazily to avoid circular imports
 # This allows 'loom.web.main:app' to work for uvicorn
 def __getattr__(name):
     if name == "app":
         from loom.web.main import app
+
         return app
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

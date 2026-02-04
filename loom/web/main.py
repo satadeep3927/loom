@@ -279,14 +279,18 @@ async def root(request: Request):
 
     # Check if React build exists
     if not index_file.exists():
-        return {"message": "Loom Dashboard API", "docs": "/docs", "note": "React UI not built"}
+        return {
+            "message": "Loom Dashboard API",
+            "docs": "/docs",
+            "note": "React UI not built",
+        }
 
     # Read index.html
     with open(index_file, "r", encoding="utf-8") as f:
         html_content = f.read()
 
     # Inject API URL configuration
-    api_url = str(request.base_url).rstrip('/')
+    api_url = str(request.base_url).rstrip("/")
     config_script = f"""
     <script>
         window.__API_URL__ = "{api_url}";
