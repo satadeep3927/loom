@@ -3,15 +3,20 @@
 Provides REST endpoints for generating workflow definition graphs.
 """
 
-from typing import Any, Dict
-from fastapi import APIRouter, HTTPException, Query, Depends
 from enum import Enum
+from typing import Any, Dict
 
-from ...core.graph import WorkflowAnalyzer, generate_mermaid_graph, generate_graphviz_dot
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from ...common.workflow import workflow_registry
+from ...core.graph import (
+    WorkflowAnalyzer,
+    generate_graphviz_dot,
+    generate_mermaid_graph,
+)
 from ...database.db import Database
+from ...schemas.graph import GraphResponse, WorkflowDefinitionGraph
 from ..schemas import ErrorResponse
-from ...schemas.graph import WorkflowDefinitionGraph, GraphResponse, GraphFormat
 
 router = APIRouter()
 
@@ -34,25 +39,25 @@ class GraphFormatEnum(str, Enum):
     response_model=WorkflowDefinitionGraph,
     summary="Get workflow definition graph",
     description="""
-    Generate a static workflow definition graph showing the structure of steps, 
+    Generate a static workflow definition graph showing the structure of steps,
     activities, timers, and state dependencies as defined in the workflow code.
-    
-    This is similar to Airflow's DAG view - it shows the workflow structure 
+
+    This is similar to Airflow's DAG view - it shows the workflow structure
     based on code analysis, not runtime execution.
-    
+
     **Features:**
     - Step sequence and dependencies
-    - Activity calls within each step  
+    - Activity calls within each step
     - Timer/sleep operations
     - State read/write dependencies
     - Workflow metadata
-    
+
     **Node Types:**
     - `step`: Workflow steps (blue boxes)
     - `activity`: Activity calls (green circles)
     - `timer`: Sleep/delay operations (yellow diamonds)
     - `state`: State variables (red hexagons)
-    
+
     **Edge Types:**
     - `sequence`: Step-to-step flow
     - `calls`: Step calls activity
@@ -73,25 +78,25 @@ async def get_workflow_definition_graph(workflow_id: str, db: Database = Depends
         workflow_info = await db.get_workflow_info(workflow_id)
         if not workflow_info:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail=f"Workflow with ID '{workflow_id}' not found"
             )
-        
+
         # Get workflow class using module and name from database
         workflow_class = workflow_registry(workflow_info["module"], workflow_info["name"])
-        
+
         # Analyze workflow definition
         graph = WorkflowAnalyzer.analyze_workflow_definition(workflow_class)
-        
+
         return graph
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (ModuleNotFoundError, AttributeError, TypeError) as e:
         raise HTTPException(status_code=400, detail=f"Failed to load workflow class: {str(e)}")
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Failed to analyze workflow: {str(e)}"
         )
 
@@ -102,17 +107,17 @@ async def get_workflow_definition_graph(workflow_id: str, db: Database = Depends
     summary="Render workflow definition graph",
     description="""
     Generate a workflow definition graph in various output formats for visualization.
-    
+
     **Supported Formats:**
     - `json`: Structured JSON data (same as /definition endpoint)
     - `mermaid`: Mermaid diagram syntax for rendering
     - `dot`: GraphViz DOT format for advanced visualization
-    
+
     **Usage Examples:**
     - Use `mermaid` format to render in web UIs or documentation
     - Use `dot` format for GraphViz tools (dot, neato, fdp, etc.)
     - Use `json` format for custom visualization libraries
-    
+
     **Mermaid Example:**
     ```
     graph TD
@@ -146,13 +151,13 @@ async def render_workflow_definition_graph(
                 status_code=404,
                 detail=f"Workflow with ID '{workflow_id}' not found"
             )
-        
+
         # Get workflow class using module and name from database
         workflow_class = workflow_registry(workflow_info["module"], workflow_info["name"])
-        
+
         # Analyze workflow definition
         graph = WorkflowAnalyzer.analyze_workflow_definition(workflow_class)
-        
+
         # Generate output based on format
         if format == GraphFormatEnum.JSON:
             content = graph.json(indent=2)
@@ -165,7 +170,7 @@ async def render_workflow_definition_graph(
                 status_code=400,
                 detail=f"Unsupported format: {format}"
             )
-        
+
         return GraphResponse(
             format=format.value,
             content=content,
@@ -177,7 +182,7 @@ async def render_workflow_definition_graph(
                 **graph.metadata
             }
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (ModuleNotFoundError, AttributeError, TypeError) as e:
@@ -192,10 +197,10 @@ async def render_workflow_definition_graph(
 @router.get(
     "/workflows/",
     response_model=Dict[str, Any],
-    summary="List workflows for graph generation", 
+    summary="List workflows for graph generation",
     description="""
     Get a list of all workflows in the database that can be analyzed for graphs.
-    
+
     Returns workflow IDs, names, versions, and basic metadata for each workflow.
     Use the workflow ID with the graph endpoints to generate visualizations.
     """
@@ -210,7 +215,7 @@ async def list_workflows_for_graphs(db: Database = Depends(get_db)):
             ORDER BY created_at DESC
         """
         workflows = await db.query(workflows_sql)
-        
+
         workflow_list = []
         for workflow in workflows:
             workflow_list.append({
@@ -223,12 +228,12 @@ async def list_workflows_for_graphs(db: Database = Depends(get_db)):
                 "created_at": workflow["created_at"],
                 "updated_at": workflow["updated_at"]
             })
-        
+
         return {
             "total_count": len(workflow_list),
             "workflows": workflow_list
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,

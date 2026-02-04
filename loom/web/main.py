@@ -5,7 +5,6 @@ for monitoring and managing Loom workflows.
 """
 
 import json
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -277,15 +276,15 @@ async def root(request: Request):
     """Serve React UI with API URL configuration"""
     dist_dir = Path(__file__).parent / "dist"
     index_file = dist_dir / "index.html"
-    
+
     # Check if React build exists
     if not index_file.exists():
         return {"message": "Loom Dashboard API", "docs": "/docs", "note": "React UI not built"}
-    
+
     # Read index.html
     with open(index_file, "r", encoding="utf-8") as f:
         html_content = f.read()
-    
+
     # Inject API URL configuration
     api_url = str(request.base_url).rstrip('/')
     config_script = f"""
@@ -293,10 +292,10 @@ async def root(request: Request):
         window.__API_URL__ = "{api_url}";
     </script>
     """
-    
+
     # Insert before </head> tag
     html_content = html_content.replace("</head>", f"{config_script}</head>")
-    
+
     return HTMLResponse(content=html_content)
 
 

@@ -9,7 +9,8 @@ Demonstrates:
 import asyncio
 import sys
 from pathlib import Path
-from typing import TypedDict
+
+from loom.schemas.state import Input, State
 
 # Add src to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,11 +19,11 @@ import loom
 
 
 # Define input and state types
-class HelloInput(dict):
+class HelloInput(Input):
     name: str
 
 
-class HelloState(dict):
+class HelloState(State):
     greeting: str
     message: str
 

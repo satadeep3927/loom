@@ -1,10 +1,11 @@
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
 
 
 class GraphNode(BaseModel):
     """Represents a node in the workflow definition graph."""
-    
+
     id: str = Field(
         ...,
         description="Unique identifier for the node",
@@ -33,7 +34,7 @@ class GraphNode(BaseModel):
 
 class GraphEdge(BaseModel):
     """Represents an edge (connection) in the workflow definition graph."""
-    
+
     from_node: str = Field(
         ...,
         alias="from",
@@ -41,7 +42,7 @@ class GraphEdge(BaseModel):
         examples=["step_validate_input", "state_user_data"]
     )
     to_node: str = Field(
-        ..., 
+        ...,
         alias="to",
         description="Target node ID",
         examples=["step_process_payment", "activity_send_notification"]
@@ -60,7 +61,7 @@ class GraphEdge(BaseModel):
 
 class WorkflowDefinitionGraph(BaseModel):
     """Complete workflow definition graph structure."""
-    
+
     nodes: List[GraphNode] = Field(
         ...,
         description="List of nodes in the graph"
@@ -80,7 +81,7 @@ class WorkflowDefinitionGraph(BaseModel):
             }
         ]
     )
-    
+
     class Config:
         json_encoders = {
             # Add any custom encoders if needed
@@ -91,7 +92,7 @@ class WorkflowDefinitionGraph(BaseModel):
                     "nodes": [
                         {
                             "id": "step_validate_order",
-                            "type": "step", 
+                            "type": "step",
                             "label": "Validate Order",
                             "metadata": {
                                 "description": "Validates order data and inventory",
@@ -109,7 +110,7 @@ class WorkflowDefinitionGraph(BaseModel):
                         },
                         {
                             "id": "state_order_valid",
-                            "type": "state", 
+                            "type": "state",
                             "label": "state.order_valid",
                             "metadata": {
                                 "key": "order_valid"
@@ -119,7 +120,7 @@ class WorkflowDefinitionGraph(BaseModel):
                     "edges": [
                         {
                             "from": "step_validate_order",
-                            "to": "activity_check_inventory", 
+                            "to": "activity_check_inventory",
                             "type": "calls",
                             "label": "executes"
                         },
@@ -142,17 +143,17 @@ class WorkflowDefinitionGraph(BaseModel):
 
 class GraphFormat(BaseModel):
     """Supported graph output formats."""
-    
+
     format: str = Field(
         ...,
         description="Output format for the graph",
         examples=["mermaid", "dot", "json"]
     )
-    
+
 
 class GraphResponse(BaseModel):
     """Response containing the generated graph."""
-    
+
     format: str = Field(
         ...,
         description="Format of the generated graph",
