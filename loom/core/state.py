@@ -41,44 +41,35 @@ class StateProxy(Generic[InputT, StateT]):
             await self._ctx._append_event(*event)
             raise StopReplay
 
-    async def update(self, **updaters: Callable[..., Any]) -> None:
-        """Batch update state using updater functions.
+    async def update(self, updater: Callable[..., StateT]) -> None:
+        """Update entire state using an updater function.
 
-        Updater functions can be:
-        - Zero-argument: lambda: "new_value"
-        - One-argument: lambda old_val: old_val + 1
+        The updater can be:
+        - Zero-argument: lambda: {"new": "state"}
+        - One-argument: lambda old_state: {**old_state, "count": old_state["count"] + 1}
 
         Example:
-            await ctx.state.update(
-                count=lambda c: (c or 0) + 1,
-                timestamp=lambda: datetime.now(),
-            )
+            await ctx.state.update(lambda s: {
+                **s,
+                "count": (s.get("count") or 0) + 1,
+                "updated_at": datetime.now()
+            })
         """
         event = self._ctx._peek()
 
         if event and event["type"] == "STATE_UPDATE":
             payload = event["payload"]
-            if set(payload["values"].keys()) == set(updaters.keys()):
-                self._ctx._consume()
-                for key, value in payload["values"].items():
-                    self._data[key] = value
-                return
+            self._ctx._consume()
+            self._data = payload["state"]
+            return
 
-        new_values = {}
-        for key, fn in updaters.items():
-            old = self._data.get(key)
+        sig = signature(updater)
+        if len(sig.parameters) == 0:
+            new_state = updater()
+        else:
+            new_state = updater(self._data)
 
-            sig = signature(fn)
-            if len(sig.parameters) == 0:
-                new_values[key] = (
-                    fn() if callable(fn) and hasattr(fn, "__call__") else fn
-                )
-            else:
-                new_values[key] = (
-                    fn(old) if callable(fn) and hasattr(fn, "__call__") else fn
-                )
-
-        event = ("STATE_UPDATE", {"values": new_values})
+        event = ("STATE_UPDATE", {"state": new_state})
 
         if self._batch is not None:
             self._batch.append(event)
