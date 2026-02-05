@@ -71,11 +71,11 @@ class StateProxy(Generic[InputT, StateT]):
             sig = signature(fn)
             if len(sig.parameters) == 0:
                 new_values[key] = (
-                    await fn() if callable(fn) and hasattr(fn, "__call__") else fn
+                    fn() if callable(fn) and hasattr(fn, "__call__") else fn
                 )
             else:
                 new_values[key] = (
-                    await fn(old) if callable(fn) and hasattr(fn, "__call__") else fn
+                    fn(old) if callable(fn) and hasattr(fn, "__call__") else fn
                 )
 
         event = ("STATE_UPDATE", {"values": new_values})
