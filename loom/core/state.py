@@ -1,15 +1,13 @@
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable, Callable, Generic
+from inspect import signature
+from typing import Any, Callable, Generic
 
 from ..common.errors import StopReplay
 from ..schemas.workflow import InputT, StateT
 
 
 class StateProxy(Generic[InputT, StateT]):
-    """
-    Proxy class for managing state interactions.
-    Provides methods to get and set state values in the database.
-    """
+    """Proxy for workflow state management with replay support."""
 
     _data: StateT
     _ctx: Any
@@ -43,12 +41,17 @@ class StateProxy(Generic[InputT, StateT]):
             await self._ctx._append_event(*event)
             raise StopReplay
 
-    async def update(self, **updaters: Callable[..., Awaitable[Any]]) -> None:
-        """
+    async def update(self, **updaters: Callable[..., Any]) -> None:
+        """Batch update state using updater functions.
+
+        Updater functions can be:
+        - Zero-argument: lambda: "new_value"
+        - One-argument: lambda old_val: old_val + 1
+
         Example:
             await ctx.state.update(
                 count=lambda c: (c or 0) + 1,
-                name=lambda _: "Satadeep",
+                timestamp=lambda: datetime.now(),
             )
         """
         event = self._ctx._peek()
@@ -60,11 +63,20 @@ class StateProxy(Generic[InputT, StateT]):
                 for key, value in payload["values"].items():
                     self._data[key] = value
                 return
-        new_values = {}
 
+        new_values = {}
         for key, fn in updaters.items():
             old = self._data.get(key)
-            new_values[key] = await fn(old)
+
+            sig = signature(fn)
+            if len(sig.parameters) == 0:
+                new_values[key] = (
+                    await fn() if callable(fn) and hasattr(fn, "__call__") else fn
+                )
+            else:
+                new_values[key] = (
+                    await fn(old) if callable(fn) and hasattr(fn, "__call__") else fn
+                )
 
         event = ("STATE_UPDATE", {"values": new_values})
 
@@ -76,24 +88,25 @@ class StateProxy(Generic[InputT, StateT]):
 
     @asynccontextmanager
     async def batch(self):
-        """
-        Context manager to batch multiple state updates into a single event.
+        """Batch multiple state operations into a single transaction.
+
         Example:
             async with ctx.state.batch():
                 await ctx.state.set("a", 1)
                 await ctx.state.set("b", 2)
-                await ctx.state.update(
-                    count=lambda c: (c or 0) + 1,
-                )
         """
         if self._batch is not None:
             raise RuntimeError("Nested batches are not supported.")
-        self._batch = []  # type: ignore
+
+        self._batch = []
 
         try:
             yield
         finally:
-            for type, payload in self._batch:
-                await self._ctx._append_event(type, payload)
-            self._batch = None  # type: ignore
-            raise StopReplay
+            if self._batch:
+                for type, payload in self._batch:
+                    await self._ctx._append_event(type, payload)
+                self._batch = None
+                raise StopReplay
+            else:
+                self._batch = None
