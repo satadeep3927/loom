@@ -95,8 +95,8 @@ class WorkflowHandle(Generic[InputT, StateT]):
             elif event_type == "STATE_UPDATE":
                 try:
                     payload = event["payload"]
-                    state_dict.update(payload)
-                except TypeError:
+                    state_dict = payload["state"]
+                except (KeyError, TypeError):
                     continue
 
         return state_dict  # type: ignore

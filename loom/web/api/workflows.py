@@ -196,7 +196,7 @@ async def get_workflow(workflow_id: str, db: Database = Depends(get_db)):
             if event["type"] == "STATE_SET":
                 current_state[payload["key"]] = payload["value"]
             elif event["type"] == "STATE_UPDATE":
-                current_state.update(payload["values"])
+                current_state = payload["state"]
 
         return WorkflowDetail(
             id=workflow["id"],
