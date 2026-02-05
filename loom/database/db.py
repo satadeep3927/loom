@@ -684,10 +684,10 @@ class Database(Generic[InputT, StateT]):
                 FROM events
             WHERE workflow_id = ?
                 AND type = 'ACTIVITY_SCHEDULED'
-                AND payload->>'$.name' = ?
+                AND json_extract(payload, '$.name') = ?
             ORDER BY id ASC
                 LIMIT 1
-            OFFSET ?
+            OFFSET ?;
         """
         row = await self.fetchone(sql, (workflow_id, activity_name, attempts - 1))
         if not row:
