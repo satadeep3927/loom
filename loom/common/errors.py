@@ -16,6 +16,15 @@ class WorkflowExecutionError(Exception):
     pass
 
 
+class ActivityFailedError(Exception):
+    """Exception raised when an activity has permanently failed after all retries."""
+
+    def __init__(self, activity_name: str, error_message: str):
+        self.activity_name = activity_name
+        self.error_message = error_message
+        super().__init__(f"Activity '{activity_name}' failed: {error_message}")
+
+
 class WorkerCancelledError(Exception):
     """Exception raised when a worker has been cancelled."""
 

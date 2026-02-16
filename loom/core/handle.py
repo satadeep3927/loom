@@ -67,6 +67,10 @@ class WorkflowHandle(Generic[InputT, StateT]):
 
         return state
 
+    async def cancel(self) -> None:
+        async with Database[InputT, StateT]() as db:
+            await db.cancel_workflow(self.id)
+
     async def signal(self, name: str, payload: Dict[str, Any]) -> None:
         # Validate signal name and payload.
         if not name:

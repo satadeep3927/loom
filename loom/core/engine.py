@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Generic
 
 from ..common.activity import load_activity
-from ..common.errors import StopReplay
+from ..common.errors import ActivityFailedError, StopReplay
 from ..common.workflow import workflow_registry
 from ..database.db import Database
 from ..schemas.activity import ActivityMetadata
@@ -134,6 +134,19 @@ class Engine(Generic[InputT, StateT]):
             if last in ("STATE_SET", "STATE_UPDATE"):
                 async with Database[InputT, StateT]() as db:
                     await db.rotate_workflow_driver(workflow_id)
+            return
+        except ActivityFailedError as e:
+            # Activity failed permanently, mark workflow as failed
+            async with Database[InputT, StateT]() as db:
+                await db.workflow_failed(
+                    workflow_id,
+                    error=f"Activity '{e.activity_name}' failed: {e.error_message}",
+                )
+            return
+        except Exception as e:
+            # Unexpected error during workflow execution
+            async with Database[InputT, StateT]() as db:
+                await db.workflow_failed(workflow_id, error=str(e))
             return
 
         async with Database[InputT, StateT]() as db:

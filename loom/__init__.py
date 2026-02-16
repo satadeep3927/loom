@@ -17,6 +17,14 @@ Example:
     ...         await ctx.state.set("result", result)
 """
 
+from loom.common.errors import (
+    ActivityFailedError,
+    NonDeterministicWorkflowError,
+    WorkerCancelledError,
+    WorkflowExecutionError,
+    WorkflowNotFoundError,
+    WorkflowStillRunningError,
+)
 from loom.core.context import WorkflowContext
 from loom.core.runner import run_once
 from loom.core.worker import WorkflowWorker, start_worker
@@ -46,6 +54,13 @@ __all__ = [
     # Schemas
     "State",
     "Input",
+    # Exceptions
+    "WorkflowNotFoundError",
+    "WorkflowStillRunningError",
+    "WorkflowExecutionError",
+    "ActivityFailedError",
+    "WorkerCancelledError",
+    "NonDeterministicWorkflowError",
 ]
 
 

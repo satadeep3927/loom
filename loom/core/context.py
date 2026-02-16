@@ -2,7 +2,11 @@ import datetime
 from datetime import timedelta
 from typing import Any, Awaitable, Callable, Generic, List
 
-from ..common.errors import NonDeterministicWorkflowError, StopReplay
+from ..common.errors import (
+    ActivityFailedError,
+    NonDeterministicWorkflowError,
+    StopReplay,
+)
 from ..database.db import Database
 from ..schemas.activity import ActivityMetadata
 from ..schemas.events import Event
@@ -180,6 +184,13 @@ class WorkflowContext(Generic[InputT, StateT]):
             if completed_event:
                 self._consume()
                 return completed_event["payload"]["result"]  # type: ignore
+
+            # Check if activity failed
+            failed_event = self._match_event("ACTIVITY_FAILED")
+            if failed_event:
+                self._consume()
+                error_msg = failed_event["payload"].get("error", "Unknown error")
+                raise ActivityFailedError(metadata["name"], error_msg)
 
             raise StopReplay
 
