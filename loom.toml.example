@@ -1,0 +1,17 @@
+# Loom Configuration File
+# Copy this file to loom.toml in your project root to customize settings
+
+[database]
+# Database backend to use: "sqlite" or "duckdb"
+# Default: "sqlite"
+#
+# SQLite:
+#   - Simple, reliable, single-file database
+#   - Handles ~50 concurrent workflows
+#   - Best for: development, small-scale deployments
+#
+# DuckDB:
+#   - Better write concurrency (200-300+ workflows)
+#   - Column-oriented analytics capabilities
+#   - Best for: production, high-concurrency workloads
+backend = "sqlite"

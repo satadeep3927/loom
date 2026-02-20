@@ -2,7 +2,7 @@ import datetime
 import traceback
 
 from ..common.errors import StopReplay
-from ..database.db import Database
+from ..database import Database
 from .engine import Engine
 
 
@@ -12,7 +12,7 @@ async def run_once() -> bool:
     Returns:
         bool: True if a task was executed, False if no tasks available
     """
-    db: Database = Database()
+    db = Database()
     async with db:
         task = await db.claim_task()
         if not task:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loom-core"
-version = "1.18.0"
+version = "1.20.0"
 description = "Durable workflow orchestration engine for Python"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -25,6 +25,7 @@ classifiers = [
 
 dependencies = [
     "aiosqlite>=0.19.0",
+    "duckdb>=1.0.0",
     "click>=8.0.0",
     "rich>=14.3.1",
     "fastapi[standard]>=0.95.0",
@@ -57,7 +58,7 @@ packages = ["loom", "loom.common", "loom.core", "loom.database", "loom.decorator
 include-package-data = true
 
 [tool.setuptools.package-data]
-loom = ["migrations/up/*.sql", "migrations/down/*.sql", "web/dist/**/*"]
+loom = ["migrations/up/*.sql", "migrations/down/*.sql", "migrations/duckdb_up/*.sql", "migrations/duckdb_down/*.sql", "web/dist/**/*"]
 
 [tool.black]
 line-length = 88

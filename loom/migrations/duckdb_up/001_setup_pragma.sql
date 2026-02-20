@@ -1,0 +1,2 @@
+-- DuckDB doesn't need PRAGMA settings
+-- This file intentionally left empty

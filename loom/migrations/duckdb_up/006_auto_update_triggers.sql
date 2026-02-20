@@ -1,0 +1,3 @@
+-- DuckDB doesn't support triggers
+-- Auto-updates will be handled in application code
+-- This file intentionally left empty

@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Generic, Iterable, List
+from typing import Any, Dict, Iterable, List
 from uuid import uuid4
 
 import aiosqlite
@@ -14,9 +14,10 @@ from ..schemas.database import WorkflowInput
 from ..schemas.events import Event
 from ..schemas.tasks import Task
 from ..schemas.workflow import InputT, StateT
+from .base import DatabaseBackend
 
 
-class Database(Generic[InputT, StateT]):
+class Database(DatabaseBackend[InputT, StateT]):
     """Async SQLite database interface for workflow orchestration.
 
     This class provides a comprehensive interface for managing workflow data,

@@ -1,5 +1,6 @@
 # Core dependencies
 aiosqlite
+duckdb>=1.0.0
 setuptools>=65.0.0
 # Web dashboard
 fastapi[standard]>=0.104.0
