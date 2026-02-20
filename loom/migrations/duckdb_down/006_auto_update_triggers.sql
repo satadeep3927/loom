@@ -1,0 +1,2 @@
+-- DuckDB doesn't support triggers
+-- Nothing to revert

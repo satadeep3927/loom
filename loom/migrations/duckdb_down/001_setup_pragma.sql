@@ -1,0 +1,2 @@
+-- DuckDB doesn't use PRAGMA settings
+-- Nothing to revert
