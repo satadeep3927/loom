@@ -65,11 +65,32 @@ class Engine(Generic[InputT, StateT]):
                             "error": str(e),
                         },
                     )
+                    raise ActivityFailedError(activity_name, str(e))
                 else:
-
+                    # Schedule retry and create a new ACTIVITY_SCHEDULED event
+                    # for this retry attempt so replay can find it
                     delay = min(60, 2 ** task["attempts"])
                     next_run = datetime.now(timezone.utc) + timedelta(seconds=delay)
                     await db.schedule_retry(task["id"], next_run, str(e))
+
+                    # Get the original activity metadata from the first scheduled event
+                    # to use for the retry event
+                    original_event = await db.get_activity_event(
+                        workflow_id, activity_name, attempts=1
+                    )
+
+                    if not original_event:
+                        # If we can't find the original event, we can't retry properly
+                        raise ValueError(
+                            f"Cannot schedule retry for activity {activity_name} - original event not found"
+                        )
+
+                    # Create a new ACTIVITY_SCHEDULED event with the same metadata
+                    await db.create_event(
+                        workflow_id=workflow_id,
+                        type="ACTIVITY_SCHEDULED",
+                        payload=original_event["payload"],
+                    )
 
     @staticmethod
     async def replay_until_block(workflow_id: str) -> None:
