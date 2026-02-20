@@ -106,7 +106,13 @@ class WorkflowContext(Generic[InputT, StateT]):
         Safe helper to check if the NEXT event matches what we expect.
         Returns the event if it matches (does NOT consume).
         Returns None if the next event is something else (or end of history).
+        Only matches events from the original history, not newly created events.
         """
+        # Only match events from original history during replay
+        # Don't match events that were just appended in this execution
+        if self.cursor >= self._original_history_length:
+            return None
+
         event = self._peek()
         if event and event["type"] == expected_type:
             return event
