@@ -2,8 +2,9 @@
 """Loom CLI - Command-line interface for Loom workflow orchestration."""
 
 import asyncio
-import os  # Added import
+import os
 import sys
+from datetime import datetime
 from typing import Any
 
 import click
@@ -301,6 +302,213 @@ def stats():
     except Exception as e:
         echo(f"[red]Error: {e}[/red]")
         sys.exit(1)
+
+
+@cli.command()
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+@click.option("--no-backup", is_flag=True, help="Don't create backup before cleaning")
+@click.option("--list-backups", is_flag=True, help="List available database backups")
+@click.option("--restore", metavar="BACKUP", help="Restore database from backup file")
+def clean(force: bool, no_backup: bool, list_backups: bool, restore: str | None):
+    """Clean database or manage backups.
+
+    Examples:
+        loom clean                     # Clean with confirmation and backup
+        loom clean --force             # Clean without confirmation
+        loom clean --no-backup         # Clean without creating backup
+        loom clean --list-backups      # List available backups
+        loom clean --restore backup.db # Restore from backup
+    """
+
+    if list_backups:
+        _list_backups()
+        return
+
+    if restore:
+        _restore_backup(restore, force)
+        return
+
+    _clean_database(force, no_backup)
+
+
+def _list_backups():
+    """List available database backups."""
+    from pathlib import Path
+
+    from ..common.config import DATABASE
+
+    db_path = Path(DATABASE)
+    db_dir = db_path.parent
+    db_name = db_path.name
+
+    backups = list(db_dir.glob(f"{db_name}.backup_*"))
+
+    if not backups:
+        echo(f"[yellow]No backups found for {DATABASE}[/yellow]")
+        return
+
+    echo(f"\n[bold]Available Backups ({len(backups)}):[/bold]\n")
+
+    # Sort by timestamp (newest first)
+    backups.sort(reverse=True)
+
+    for backup in backups:
+        size = backup.stat().st_size / (1024 * 1024)
+        mtime = datetime.fromtimestamp(backup.stat().st_mtime)
+
+        echo(f"  [cyan]{backup.name}[/cyan]")
+        echo(f"    Size: {size:.2f} MB")
+        echo(f"    Created: {mtime.strftime('%Y-%m-%d %H:%M:%S')}")
+        echo("")
+
+
+def _restore_backup(backup_path: str, force: bool):
+    """Restore database from backup."""
+    import shutil
+
+    from ..common.config import DATABASE
+
+    if not os.path.exists(backup_path):
+        echo(f"[red]Backup file not found: {backup_path}[/red]")
+        sys.exit(1)
+
+    backup_size = os.path.getsize(backup_path)
+    backup_size_mb = backup_size / (1024 * 1024)
+
+    echo("\n[bold]Database Restore[/bold]")
+    echo(f"  From: {backup_path}")
+    echo(f"  To: {DATABASE}")
+    echo(f"  Size: {backup_size_mb:.2f} MB")
+
+    if not force:
+        echo("\n[yellow]⚠️  WARNING: Current database will be replaced![/yellow]")
+        response = input("\nAre you sure you want to continue? (yes/no): ")
+        if response.lower() not in ("yes", "y"):
+            echo("[yellow]Restore cancelled[/yellow]")
+            return
+
+    try:
+        # Backup current database before restore
+        if os.path.exists(DATABASE):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safety_backup = f"{DATABASE}.pre_restore_{timestamp}"
+            shutil.copy2(DATABASE, safety_backup)
+            echo(f"[dim]Safety backup: {safety_backup}[/dim]")
+
+        # Copy backup to database path
+        shutil.copy2(backup_path, DATABASE)
+
+        echo("\n[green]✓ Database restored successfully[/green]")
+
+    except Exception as e:
+        echo(f"\n[red]Restore failed: {e}[/red]")
+        sys.exit(1)
+
+
+def _clean_database(force: bool, no_backup: bool):
+    """Clean all data from database."""
+    import shutil
+
+    from ..common.config import DATABASE
+
+    # Check if database exists
+    if not os.path.exists(DATABASE):
+        echo(f"[yellow]Database file not found: {DATABASE}[/yellow]")
+        return
+
+    # Get database info
+    db_size = os.path.getsize(DATABASE)
+    db_size_mb = db_size / (1024 * 1024)
+
+    echo("\n[bold]Database Cleanup[/bold]")
+    echo(f"  Path: {DATABASE}")
+    echo(f"  Size: {db_size_mb:.2f} MB")
+
+    # Get workflow count
+    async def _get_stats():
+        try:
+            async with Database[Any, Any]() as db:
+                workflows = await db.query("SELECT COUNT(*) as count FROM workflows")
+                events = await db.query("SELECT COUNT(*) as count FROM events")
+                tasks = await db.query("SELECT COUNT(*) as count FROM tasks")
+
+                workflow_count = list(workflows)[0]["count"]
+                event_count = list(events)[0]["count"]
+                task_count = list(tasks)[0]["count"]
+
+                echo("\n[bold]Current Data:[/bold]")
+                echo(f"  Workflows: {workflow_count}")
+                echo(f"  Events: {event_count}")
+                echo(f"  Tasks: {task_count}")
+
+                return workflow_count > 0
+        except Exception as e:
+            echo(f"\n[yellow]Could not read database stats: {e}[/yellow]")
+            return True
+
+    has_data = asyncio.run(_get_stats())
+
+    if not has_data:
+        echo("\n[yellow]Database is already empty[/yellow]")
+        return
+
+    # Confirmation
+    if not force:
+        echo("\n[red]⚠️  WARNING: This will delete all workflow data![/red]")
+        echo("  - All workflow instances will be removed")
+        echo("  - All event history will be lost")
+        echo("  - All tasks will be cleared")
+        echo("  - All logs will be deleted")
+
+        response = input("\nAre you sure you want to continue? (yes/no): ")
+        if response.lower() not in ("yes", "y"):
+            echo("[yellow]Cleanup cancelled[/yellow]")
+            return
+
+    # Create backup
+    if not no_backup:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{DATABASE}.backup_{timestamp}"
+
+        try:
+            shutil.copy2(DATABASE, backup_path)
+            echo(f"[green]✓ Backup created: {backup_path}[/green]")
+        except Exception as e:
+            echo(f"[red]Backup failed: {e}[/red]")
+            if not force:
+                response = input("\nContinue without backup? (yes/no): ")
+                if response.lower() not in ("yes", "y"):
+                    echo("[yellow]Cleanup cancelled[/yellow]")
+                    return
+
+    # Clean database
+    async def _clean():
+        try:
+            async with Database[Any, Any]() as db:
+                # Delete in correct order (respecting foreign keys)
+                await db.execute("DELETE FROM logs")
+                await db.execute("DELETE FROM tasks")
+                await db.execute("DELETE FROM events")
+                await db.execute("DELETE FROM workflows")
+
+                # Vacuum to reclaim space
+                await db.execute("VACUUM")
+
+            echo("\n[green]✓ Database cleaned successfully[/green]")
+
+            # Show new size
+            new_size = os.path.getsize(DATABASE)
+            new_size_mb = new_size / (1024 * 1024)
+            freed_mb = db_size_mb - new_size_mb
+
+            echo(f"  New size: {new_size_mb:.2f} MB")
+            echo(f"  Freed: {freed_mb:.2f} MB")
+
+        except Exception as e:
+            echo(f"\n[red]Cleanup failed: {e}[/red]")
+            sys.exit(1)
+
+    asyncio.run(_clean())
 
 
 if __name__ == "__main__":
