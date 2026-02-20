@@ -5,7 +5,7 @@ from typing import Generic
 from ..common.activity import load_activity
 from ..common.errors import ActivityFailedError, StopReplay
 from ..common.workflow import workflow_registry
-from ..database.db import Database
+from ..database import Database
 from ..schemas.activity import ActivityMetadata
 from ..schemas.tasks import Task
 from ..schemas.workflow import InputT, StateT

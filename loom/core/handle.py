@@ -6,7 +6,7 @@ from ..common.errors import (
     WorkflowExecutionError,
     WorkflowStillRunningError,
 )
-from ..database.db import Database
+from ..database import Database
 from ..schemas.events import (
     ActivityFailurePayload,
     Event,

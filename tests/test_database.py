@@ -2,7 +2,7 @@
 
 import pytest
 
-from loom.database.db import Database
+from loom.database import Database
 
 
 @pytest.mark.asyncio

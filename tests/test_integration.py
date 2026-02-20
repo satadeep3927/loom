@@ -4,7 +4,7 @@ import pytest
 
 from loom.core.context import WorkflowContext
 from loom.core.workflow import Workflow
-from loom.database.db import Database
+from loom.database import Database
 from loom.decorators.activity import activity
 from loom.decorators.workflow import step, workflow
 

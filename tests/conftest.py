@@ -7,7 +7,7 @@ import tempfile
 import pytest
 
 from loom.common.config import DATABASE
-from loom.database.db import Database
+from loom.database import Database
 
 
 @pytest.fixture(scope="session")

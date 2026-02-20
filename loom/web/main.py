@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from ..database.db import Database
+from ..database import Database
 from .api import events, graphs, logs, stats, tasks, workflows
 
 

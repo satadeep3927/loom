@@ -29,7 +29,7 @@ from loom.core.context import WorkflowContext
 from loom.core.runner import run_once
 from loom.core.worker import WorkflowWorker, start_worker
 from loom.core.workflow import Workflow
-from loom.database.db import Database
+from loom.database import Database
 from loom.decorators.activity import activity
 from loom.decorators.workflow import step, workflow
 from loom.schemas.state import Input, State

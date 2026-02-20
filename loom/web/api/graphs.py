@@ -14,7 +14,7 @@ from ...core.graph import (
     generate_graphviz_dot,
     generate_mermaid_graph,
 )
-from ...database.db import Database
+from ...database import Database
 from ...schemas.graph import GraphResponse, WorkflowDefinitionGraph
 from ..schemas import ErrorResponse
 

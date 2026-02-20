@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
-from ..database.db import Database
+from ..database import Database
 
 # Configure logging with rich formatting if available
 try:

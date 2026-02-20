@@ -1,7 +1,7 @@
 from typing import Generic, List
 
 from ..core.handle import WorkflowHandle
-from ..database.db import Database
+from ..database import Database
 from ..schemas.database import WorkflowInput
 from ..schemas.workflow import InputT, StateT, Step
 

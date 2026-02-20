@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ..core.worker import start_worker
-from ..database.db import Database
+from ..database import Database
 
 console = Console()
 

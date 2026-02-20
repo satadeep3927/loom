@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...database.db import Database
+from ...database import Database
 from ..schemas import (
     ErrorResponse,
     SystemStats,

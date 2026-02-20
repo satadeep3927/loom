@@ -7,7 +7,7 @@ from ..common.errors import (
     NonDeterministicWorkflowError,
     StopReplay,
 )
-from ..database.db import Database
+from ..database import Database
 from ..schemas.activity import ActivityMetadata
 from ..schemas.events import Event
 from ..schemas.workflow import InputT, StateT
