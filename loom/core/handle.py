@@ -48,13 +48,6 @@ class WorkflowHandle(Generic[InputT, StateT]):
         # Check status first to avoid unnecessary work
         async with Database[InputT, StateT]() as db:
             status = await db.get_workflow_status(self.id)
-
-        if status == "RUNNING":
-            raise WorkflowStillRunningError(
-                "Workflow is still running; result is not available."
-            )
-
-        async with Database[InputT, StateT]() as db:
             events = await db.get_workflow_events(self.id)
 
         state = self._replay_state(events)
