@@ -31,6 +31,8 @@ dependencies = [
     "fastapi[standard]>=0.95.0",
     "uvicorn[standard]>=0.22.0",
     "pydantic>=2.0.0",
+    "ruff>=0.15.2",
+    "isort>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -90,3 +92,9 @@ target-version = "py312"
 lint.select = ["E", "F", "I", "N", "W"]
 lint.ignore = ["E501", "F405"]
 exclude = ["tests", "examples", "__pycache__"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]

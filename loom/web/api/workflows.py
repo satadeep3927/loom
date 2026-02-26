@@ -36,7 +36,7 @@ async def get_db():
 
 def calculate_duration(workflow: dict) -> Optional[int]:
     """Calculate workflow duration in seconds if completed"""
-    if workflow["status"] in ["COMPLETED", "FAILED", "CANCELED"]:
+    if workflow["status"] in ["COMPLETED", "FAILED", "CANCELLED"]:
         from datetime import datetime
 
         created = datetime.fromisoformat(workflow["created_at"].replace("Z", "+00:00"))

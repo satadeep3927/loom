@@ -162,7 +162,7 @@ def init():
     "--status",
     "-s",
     type=click.Choice(
-        ["RUNNING", "COMPLETED", "FAILED", "CANCELED"], case_sensitive=False
+        ["RUNNING", "COMPLETED", "FAILED", "CANCELLED"], case_sensitive=False
     ),
     help="Filter by workflow status",
 )
@@ -212,7 +212,7 @@ def list(limit: int, status: str | None):
                     "RUNNING": "[yellow]RUNNING[/yellow]",
                     "COMPLETED": "[green]COMPLETED[/green]",
                     "FAILED": "[red]FAILED[/red]",
-                    "CANCELED": "[dim]CANCELED[/dim]",
+                    "CANCELLED": "[dim]CANCELLED[/dim]",
                 }.get(wf["status"], wf["status"])
 
                 table.add_row(wf["id"], wf["name"], status_style, wf["created_at"])

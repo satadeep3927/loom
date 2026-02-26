@@ -23,7 +23,7 @@ class WorkflowStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    CANCELED = "CANCELED"
+    CANCELLED = "CANCELLED"
 
 
 class WorkflowInfo(TypedDict):

@@ -19,7 +19,7 @@ class WorkflowStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    CANCELED = "CANCELED"
+    CANCELLED = "CANCELLED"
 
 
 class TaskStatus(str, Enum):
@@ -382,7 +382,7 @@ class WorkflowStats(BaseModel):
     running: int = Field(..., description="Number of running workflows")
     completed: int = Field(..., description="Number of completed workflows")
     failed: int = Field(..., description="Number of failed workflows")
-    canceled: int = Field(..., description="Number of canceled workflows")
+    cancelled: int = Field(..., description="Number of cancelled workflows")
 
 
 class TaskStats(BaseModel):

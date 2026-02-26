@@ -371,7 +371,7 @@ class Database(DatabaseBackend[InputT, StateT]):
         workflow = await self.get_workflow_info(workflow_id)
 
         # Skip if already in terminal state
-        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELED"):
+        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
             return
 
         # Prepare failure payload
@@ -432,7 +432,7 @@ class Database(DatabaseBackend[InputT, StateT]):
         workflow = await self.get_workflow_info(workflow_id)
 
         # Skip if already in terminal state
-        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELED"):
+        if workflow["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
             return
 
         # Create completion event
@@ -501,13 +501,13 @@ class Database(DatabaseBackend[InputT, StateT]):
             raise WorkflowNotFoundError(f"Workflow with ID {workflow_id} not found.")
 
         # Skip if already in terminal state
-        if row["status"] in ("COMPLETED", "FAILED", "CANCELED"):
+        if row["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
             return
 
         # Prepare cancellation payload
         payload = {
             "reason": reason or "Cancelled",
-            "canceled_at": datetime.now(timezone.utc).isoformat(),
+            "cancelled_at": datetime.now(timezone.utc).isoformat(),
         }
 
         # Create cancellation event

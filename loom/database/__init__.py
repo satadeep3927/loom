@@ -7,6 +7,7 @@ _backend = get_database_backend()
 
 if _backend == "duckdb":
     from .duckdb_backend import DuckDBDatabase
+
     Database = DuckDBDatabase
 else:
     Database = SQLiteDatabase

@@ -4,7 +4,6 @@ from typing import Any, Dict, Generic, Iterable, List
 from ..common.errors import (
     WorkerCancelledError,
     WorkflowExecutionError,
-    WorkflowStillRunningError,
 )
 from ..database import Database
 from ..schemas.events import (
@@ -55,8 +54,10 @@ class WorkflowHandle(Generic[InputT, StateT]):
         if status == "FAILED":
             error = self._extract_error(events)
             raise WorkflowExecutionError(error)
-        if status == "CANCELED":
-            raise WorkerCancelledError("Workflow was canceled; no result is available.")
+        if status == "CANCELLED":
+            raise WorkerCancelledError(
+                "Workflow was cancelled; no result is available."
+            )
 
         return state
 

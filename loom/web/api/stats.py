@@ -32,7 +32,7 @@ async def get_db():
     Retrieve comprehensive system statistics including workflow and task counts.
 
     **Returns:**
-    - **Workflow Statistics**: Total, running, completed, failed, and canceled counts
+    - **Workflow Statistics**: Total, running, completed, failed, and cancelled counts
     - **Task Statistics**: Total, pending, running, completed, and failed counts
     - **Event Count**: Total number of events across all workflows
     - **Log Count**: Total number of log entries across all workflows
@@ -55,7 +55,7 @@ async def get_system_stats(db: Database = Depends(get_db)):
                 COUNT(CASE WHEN status = 'RUNNING' THEN 1 END) as running,
                 COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed,
                 COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
-                COUNT(CASE WHEN status = 'CANCELED' THEN 1 END) as canceled
+                COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) as cancelled
             FROM workflows
         """
         workflow_result = await db.fetchone(workflow_stats_sql, ())
@@ -65,7 +65,7 @@ async def get_system_stats(db: Database = Depends(get_db)):
             running=workflow_result["running"] if workflow_result else 0,
             completed=workflow_result["completed"] if workflow_result else 0,
             failed=workflow_result["failed"] if workflow_result else 0,
-            canceled=workflow_result["canceled"] if workflow_result else 0,
+            cancelled=workflow_result["cancelled"] if workflow_result else 0,
         )
 
         # Get task statistics
@@ -118,7 +118,7 @@ async def get_system_stats(db: Database = Depends(get_db)):
 
     **Returns:**
     - Total number of workflows
-    - Count by status: RUNNING, COMPLETED, FAILED, CANCELED
+    - Count by status: RUNNING, COMPLETED, FAILED, CANCELLLED
 
     **Use Cases:**
     - Workflow success/failure rate monitoring
@@ -136,7 +136,7 @@ async def get_workflow_stats(db: Database = Depends(get_db)):
                 COUNT(CASE WHEN status = 'RUNNING' THEN 1 END) as running,
                 COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed,
                 COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed,
-                COUNT(CASE WHEN status = 'CANCELED' THEN 1 END) as canceled
+                COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) as cancelled
             FROM workflows
         """
         result = await db.fetchone(workflow_stats_sql, ())
@@ -146,7 +146,7 @@ async def get_workflow_stats(db: Database = Depends(get_db)):
             running=result["running"] if result else 0,
             completed=result["completed"] if result else 0,
             failed=result["failed"] if result else 0,
-            canceled=result["canceled"] if result else 0,
+            cancelled=result["cancelled"] if result else 0,
         )
 
     except Exception as e:

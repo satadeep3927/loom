@@ -99,7 +99,7 @@ def create_status_table(workflows: list) -> Table:
             "RUNNING": "[yellow]RUNNING[/yellow]",
             "COMPLETED": "[green]COMPLETED[/green]",
             "FAILED": "[red]FAILED[/red]",
-            "CANCELED": "[dim]CANCELED[/dim]",
+            "CANCELLED": "[dim]CANCELLED[/dim]",
         }.get(wf.get("status", "Unknown"), wf.get("status", "Unknown"))
 
         table.add_row(
