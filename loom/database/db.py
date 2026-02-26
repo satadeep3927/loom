@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 from datetime import datetime, timezone
@@ -34,6 +35,27 @@ class Database(DatabaseBackend[InputT, StateT]):
         self.upgrade_migrations = get_upgrade_migrations()
         self.downgrade_migrations = get_downgrade_migrations()
 
+    def _connect(self):
+        """Return an aiosqlite connection with per-connection pragmas applied.
+
+        SQLite pragmas like busy_timeout and foreign_keys are connection-level
+        settings and must be re-applied on every new connection. Using this
+        helper ensures all connections share the same safe defaults and never
+        fail immediately with 'database is locked'.
+        """
+
+        @contextlib.asynccontextmanager
+        async def _ctx():
+            async with aiosqlite.connect(DATABASE) as conn:
+                conn.row_factory = aiosqlite.Row
+                await conn.execute("PRAGMA busy_timeout = 5000")
+                await conn.execute("PRAGMA journal_mode = WAL")
+                await conn.execute("PRAGMA synchronous = NORMAL")
+                await conn.execute("PRAGMA foreign_keys = ON")
+                yield conn
+
+        return _ctx()
+
     async def _init_db(self) -> None:
         """Initialize the database by creating directories and running migrations.
 
@@ -61,8 +83,7 @@ class Database(DatabaseBackend[InputT, StateT]):
         Returns:
             List of Row objects containing query results
         """
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             cursor = await conn.execute(sql, params)
             results = await cursor.fetchall()
         return results
@@ -77,8 +98,7 @@ class Database(DatabaseBackend[InputT, StateT]):
         Returns:
             First Row object or None if no results
         """
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             cursor = await conn.execute(sql, params)
             result = await cursor.fetchone()
             await conn.commit()
@@ -91,8 +111,7 @@ class Database(DatabaseBackend[InputT, StateT]):
             sql: The SQL statement string
             params: Statement parameters as a tuple
         """
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             await conn.execute(sql, params)
             await conn.commit()
 
@@ -112,8 +131,7 @@ class Database(DatabaseBackend[InputT, StateT]):
             ORDER BY id ASC
         """
 
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             cursor = await conn.execute(sql, (workflow_id,))
             rows = await cursor.fetchall()
 
@@ -145,8 +163,7 @@ class Database(DatabaseBackend[InputT, StateT]):
             WHERE id = ?
         """
 
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             cursor = await conn.execute(sql, (workflow_id,))
             row = await cursor.fetchone()
 
@@ -185,8 +202,7 @@ class Database(DatabaseBackend[InputT, StateT]):
             WHERE id = ?
         """
 
-        async with aiosqlite.connect(DATABASE) as conn:
-            conn.row_factory = aiosqlite.Row
+        async with self._connect() as conn:
             cursor = await conn.execute(sql, (workflow_id,))
             row = await cursor.fetchone()
 
@@ -664,7 +680,7 @@ class Database(DatabaseBackend[InputT, StateT]):
         )
 
         # Execute as transaction
-        async with aiosqlite.connect(DATABASE) as conn:
+        async with self._connect() as conn:
             await conn.execute(event_sql, event_params)
             await conn.execute(task_sql, task_params)
             await conn.commit()
