@@ -1,6 +1,7 @@
 """Distributed workflow worker with graceful shutdown and concurrent task execution."""
 
 import asyncio
+import random
 import signal
 import sys
 from datetime import datetime, timezone
@@ -82,7 +83,7 @@ class WorkflowWorker:
                     self._stats["tasks_completed"] = int(self._stats["tasks_completed"]) + 1  # type: ignore
                 else:
                     # No tasks available, wait before polling again
-                    await asyncio.sleep(self.poll_interval)
+                    await asyncio.sleep(self.poll_interval + random.uniform(0, 0.1))
 
             except asyncio.CancelledError:
                 # Graceful shutdown requested

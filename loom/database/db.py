@@ -267,7 +267,6 @@ class Database(DatabaseBackend[InputT, StateT]):
             workflow["module"],
             json.dumps(input),
         )
-        await self.execute(workflow_sql, workflow_params)
 
         # Add workflow started event
         event_sql = """
@@ -278,7 +277,6 @@ class Database(DatabaseBackend[InputT, StateT]):
             workflow_id,
             json.dumps({"input": input}),
         )
-        await self.execute(event_sql, event_params)
 
         # Schedule first step
         task_sql = """
@@ -290,7 +288,13 @@ class Database(DatabaseBackend[InputT, StateT]):
             workflow_id,
             workflow["name"],
         )
-        await self.execute(task_sql, task_params)
+
+        # Execute all three statements in a single connection/transaction
+        async with self._connect() as conn:
+            await conn.execute(workflow_sql, workflow_params)
+            await conn.execute(event_sql, event_params)
+            await conn.execute(task_sql, task_params)
+            await conn.commit()
 
         return workflow_id
 
@@ -400,37 +404,41 @@ class Database(DatabaseBackend[InputT, StateT]):
         if task_kind:
             payload["task_kind"] = task_kind
 
-        # Create failure event
-        await self.execute(
-            """
-            INSERT INTO events (workflow_id, type, payload)
-            VALUES (?, 'WORKFLOW_FAILED', ?)
-            """,
-            (workflow_id, json.dumps(payload)),
-        )
+        # Execute all three statements in a single connection/transaction
+        async with self._connect() as conn:
+            # Create failure event
+            await conn.execute(
+                """
+                INSERT INTO events (workflow_id, type, payload)
+                VALUES (?, 'WORKFLOW_FAILED', ?)
+                """,
+                (workflow_id, json.dumps(payload)),
+            )
 
-        # Update workflow status
-        await self.execute(
-            """
-            UPDATE workflows
-            SET status = 'FAILED',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            """,
-            (workflow_id,),
-        )
+            # Update workflow status
+            await conn.execute(
+                """
+                UPDATE workflows
+                SET status = 'FAILED',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (workflow_id,),
+            )
 
-        # Cancel all pending tasks
-        await self.execute(
-            """
-            UPDATE tasks
-            SET status = 'FAILED',
-                last_error = 'workflow failed'
-            WHERE workflow_id = ?
-              AND status = 'PENDING'
-            """,
-            (workflow_id,),
-        )
+            # Cancel all pending tasks
+            await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'FAILED',
+                    last_error = 'workflow failed'
+                WHERE workflow_id = ?
+                  AND status = 'PENDING'
+                """,
+                (workflow_id,),
+            )
+
+            await conn.commit()
 
     async def complete_workflow(self, workflow_id: str) -> None:
         """Mark a workflow as successfully completed.
@@ -451,41 +459,47 @@ class Database(DatabaseBackend[InputT, StateT]):
         if workflow["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
             return
 
-        # Create completion event
-        await self.execute(
-            """
-            INSERT INTO events (workflow_id, type, payload)
-            VALUES (?, 'WORKFLOW_COMPLETED', ?)
-            """,
-            (
-                workflow_id,
-                json.dumps({"completed_at": datetime.now(timezone.utc).isoformat()}),
-            ),
-        )
+        # Execute all three statements in a single connection/transaction
+        async with self._connect() as conn:
+            # Create completion event
+            await conn.execute(
+                """
+                INSERT INTO events (workflow_id, type, payload)
+                VALUES (?, 'WORKFLOW_COMPLETED', ?)
+                """,
+                (
+                    workflow_id,
+                    json.dumps(
+                        {"completed_at": datetime.now(timezone.utc).isoformat()}
+                    ),
+                ),
+            )
 
-        # Update workflow status
-        await self.execute(
-            """
-            UPDATE workflows
-            SET status = 'COMPLETED',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            """,
-            (workflow_id,),
-        )
+            # Update workflow status
+            await conn.execute(
+                """
+                UPDATE workflows
+                SET status = 'COMPLETED',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (workflow_id,),
+            )
 
-        # Complete any running step tasks
-        await self.execute(
-            """
-            UPDATE tasks
-            SET status = 'COMPLETED',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE workflow_id = ?
-              AND kind = 'STEP'
-              AND status = 'RUNNING'
-            """,
-            (workflow_id,),
-        )
+            # Complete any running step tasks
+            await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'COMPLETED',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE workflow_id = ?
+                  AND kind = 'STEP'
+                  AND status = 'RUNNING'
+                """,
+                (workflow_id,),
+            )
+
+            await conn.commit()
 
     async def cancel_workflow(
         self, workflow_id: str, reason: str | None = None
@@ -526,36 +540,40 @@ class Database(DatabaseBackend[InputT, StateT]):
             "cancelled_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Create cancellation event
-        await self.execute(
-            """
-            INSERT INTO events (workflow_id, type, payload)
-            VALUES (?, 'WORKFLOW_CANCELLED', ?)
-            """,
-            (workflow_id, json.dumps(payload)),
-        )
+        # Execute all three statements in a single connection/transaction
+        async with self._connect() as conn:
+            # Create cancellation event
+            await conn.execute(
+                """
+                INSERT INTO events (workflow_id, type, payload)
+                VALUES (?, 'WORKFLOW_CANCELLED', ?)
+                """,
+                (workflow_id, json.dumps(payload)),
+            )
 
-        # Update workflow status
-        await self.execute(
-            """
-            UPDATE workflows
-            SET status = 'CANCELLED'
-            WHERE id = ?
-            """,
-            (workflow_id,),
-        )
+            # Update workflow status
+            await conn.execute(
+                """
+                UPDATE workflows
+                SET status = 'CANCELLED'
+                WHERE id = ?
+                """,
+                (workflow_id,),
+            )
 
-        # Fail all pending tasks
-        await self.execute(
-            """
-            UPDATE tasks
-            SET status = 'FAILED',
-                last_error = 'workflow cancelled'
-            WHERE workflow_id = ?
-              AND status = 'PENDING'
-            """,
-            (workflow_id,),
-        )
+            # Fail all pending tasks
+            await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'FAILED',
+                    last_error = 'workflow cancelled'
+                WHERE workflow_id = ?
+                  AND status = 'PENDING'
+                """,
+                (workflow_id,),
+            )
+
+            await conn.commit()
 
     # === Task Management Methods ===
 
@@ -624,24 +642,26 @@ class Database(DatabaseBackend[InputT, StateT]):
         Returns:
             Task object if a task was claimed, None if no tasks available
         """
-        sql = """
-            UPDATE tasks
-                SET status = 'RUNNING',
-                    attempts = attempts + 1,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = (
-                    SELECT id
-                    FROM tasks
-                    WHERE status = 'PENDING'
-                    AND run_at <= CURRENT_TIMESTAMP
-                    ORDER BY run_at ASC, created_at ASC
-                    LIMIT 1
-                )
-                RETURNING *;
-        """
-
-        row = await self.fetchone(sql)
-        return Task(**row) if row else None  # type: ignore
+        async with self._connect() as conn:
+            await conn.execute("BEGIN IMMEDIATE")
+            cursor = await conn.execute("""
+                UPDATE tasks
+                    SET status = 'RUNNING',
+                        attempts = attempts + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = (
+                        SELECT id
+                        FROM tasks
+                        WHERE status = 'PENDING'
+                        AND run_at <= CURRENT_TIMESTAMP
+                        ORDER BY run_at ASC, created_at ASC
+                        LIMIT 1
+                    )
+                    RETURNING *;
+                """)
+            row = await cursor.fetchone()
+            await conn.commit()
+            return Task(**row) if row else None  # type: ignore
 
     async def create_activity(
         self, workflow_id: str, metadata: ActivityMetadata
@@ -771,29 +791,33 @@ class Database(DatabaseBackend[InputT, StateT]):
 
         workflow = await self.get_workflow_info(workflow_id)
 
-        # 1. Complete old driver
-        await self.execute(
-            """
-            UPDATE tasks
-            SET status = 'COMPLETED',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE workflow_id = ?
-            AND kind = 'STEP'
-            AND status = 'RUNNING'
-            """,
-            (workflow_id,),
-        )
-
-        # 2. Enqueue new driver
-        await self.execute(
-            """
-            INSERT INTO tasks (
-                id, workflow_id, kind, target, status, run_at
+        # Execute both statements in a single connection/transaction
+        async with self._connect() as conn:
+            # 1. Complete old driver
+            await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'COMPLETED',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE workflow_id = ?
+                AND kind = 'STEP'
+                AND status = 'RUNNING'
+                """,
+                (workflow_id,),
             )
-            VALUES (?, ?, 'STEP', ?, 'PENDING', CURRENT_TIMESTAMP)
-            """,
-            (id, workflow_id, workflow["name"]),
-        )
+
+            # 2. Enqueue new driver
+            await conn.execute(
+                """
+                INSERT INTO tasks (
+                    id, workflow_id, kind, target, status, run_at
+                )
+                VALUES (?, ?, 'STEP', ?, 'PENDING', CURRENT_TIMESTAMP)
+                """,
+                (id, workflow_id, workflow["name"]),
+            )
+
+            await conn.commit()
 
     async def complete_running_step(self, workflow_id: str):
         await self.execute(
